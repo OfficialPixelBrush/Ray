@@ -29,6 +29,7 @@ float fieldOfView = 90.0f;
 int numberOfRays = 1;
 int numberOfLines = 20;
 int numberOfLights = 3;
+int numberOfBounces = 5;
 
 struct Point {
 	float x;
@@ -59,6 +60,7 @@ typedef struct ScreenPixel ScreenPixel;
 struct Ray *RayArray;
 struct Line *LineArray;
 struct PointLight *LightArray;
+struct Color *BounceArray;
 ScreenPixel screen[WINDOW_WIDTH];
 int currentPixel = 0;
 Point origin;
@@ -67,7 +69,7 @@ float fovAngle = 0.0f;
 float cameraSpeedHorziontal = 0.0f;
 float cameraSpeedVertical = 0.0f;
 float cameraSpeedRotational = 0.0f;
-bool topDown = false;
+bool topDown = true;
 Color skyLight;
 
 // A primitive PointLight
@@ -264,10 +266,36 @@ float clamp(float in, float min, float max) {
 	return in;
 }
 
+
+float getBounceReflection(float incidentAngle, float normalAngle) {
+	// Convert angles from degrees to radians
+	float incidentDirectionRad = degreeToRadian(incidentAngle);
+	float normalAngleRad = degreeToRadian(normalAngle);
+	
+	// Calculate the incident direction vector
+	float incidentX = cos(incidentDirectionRad);
+	float incidentY = sin(incidentDirectionRad);
+
+	// Calculate the normal vector
+	float normalX = cos(normalAngleRad);
+	float normalY = sin(normalAngleRad);
+
+	// Calculate the dot product of incident and normal vectors
+	float dotProduct = incidentX * normalX + incidentY * normalY;
+
+	// Calculate the reflection vector
+	float reflectionX = incidentX - 2 * dotProduct * normalX;
+	float reflectionY = incidentY - 2 * dotProduct * normalY;
+
+	// Calculate the angle of the reflection vector in degrees
+	return radianToDegree(atan2(reflectionY, reflectionX));
+}
+
 class Ray {
 	public:
 		Point position;
 		float direction;
+		int bounces;
 		Ray(float x, float y, float _direction) {
 			position.x = x;
 			position.y = y;
@@ -298,7 +326,9 @@ class Ray {
 				position = previousPosition;
 				
 				// Get distance to camera
-				screen[currentPixel].distance = getDistance(position, origin);
+				if (bounces == 0) {
+					screen[currentPixel].distance = getDistance(position, origin);
+				}
 				
 				// Light Distance Shading
 				// Check if we hit anything on our way to a lightsource
@@ -317,54 +347,57 @@ class Ray {
 							float distanceToLight = getDistance(position,currentLight.position);
 							float normalizedLight = (1.0-(distanceToLight/currentLight.distance)) * currentLight.brightness;
 							//printf("NL: %f\n", normalizedLight);
-							screen[currentPixel].c.r += LineArray[intersectedLineID].c.r * normalizedLight;
-							screen[currentPixel].c.g += LineArray[intersectedLineID].c.g * normalizedLight;
-							screen[currentPixel].c.b += LineArray[intersectedLineID].c.b * normalizedLight;
+							screen[currentPixel].c.r += (LineArray[intersectedLineID].c.r * normalizedLight) / pow(bounces+1,2);
+							screen[currentPixel].c.g += (LineArray[intersectedLineID].c.g * normalizedLight) / pow(bounces+1,2);
+							screen[currentPixel].c.b += (LineArray[intersectedLineID].c.b * normalizedLight) / pow(bounces+1,2);
 							//printf("%f, %f, %f\n", screen[currentPixel].r, screen[currentPixel].g, screen[currentPixel].b);
 							//running = 0;
 						}
 					}
 				}
 				
-				// Distance Based Shade
-				
-				//printf("%f\t%f\t=\t%f\n", getDistance(origin,position), maxDistance, (getDistance(origin,position)/maxDistance));
-				float normalizedShade = 1-(getDistance(origin,position)/maxDistance);
+				// Distance Based Shade				
 				/*
-				screen[currentPixel].c.r = LineArray[intersectedLineID].c.r * normalizedShade;
-				screen[currentPixel].c.g = LineArray[intersectedLineID].c.g * normalizedShade;
-				screen[currentPixel].c.b = LineArray[intersectedLineID].c.b * normalizedShade;
-				*/
-				
-				
+				float normalizedShade = 1-(getDistance(origin,position)/maxDistance);
 				screen[currentPixel].c.r *= normalizedShade;
 				screen[currentPixel].c.g *= normalizedShade;
 				screen[currentPixel].c.b *= normalizedShade;
+				*/
 				
 				
 				// Line Normals
 				if (topDown) {
-					float normalRadian = calculateNormalAngle(LineArray[intersectedLineID]);
+					float normalAngle = calculateNormalAngle(LineArray[intersectedLineID]);
 					SDL_RenderDrawLine(
 						renderer,
 						position.x,
 						position.y,
-						position.x + (20*cos(normalRadian)),
-						position.y + (20*sin(normalRadian))
+						position.x + (20*cos(normalAngle)),
+						position.y + (20*sin(normalAngle))
 					);
 				}
+				
 				// WIP Bouncelight
 				// Reflect
-				/*
-				printf("Ray intersects with Line %d\n", intersectedLineID);
 				
-				float normalRadian = calculateNormalAngle(LineArray[intersectedLineID]);
-				SDL_RenderDrawLine(renderer, position.x, position.y, (position.x + (20*cos(normalRadian))), position.y + (20*sin(normalRadian)));
+				//printf("Ray intersects with Line %d\n", intersectedLineID);
 				
-				// Apply new direction based on normal
-				direction += radianToDegree(normalRadian) + 180.0f;
-				*/
-				return 1;
+				float normalAngle = calculateNormalAngle(LineArray[intersectedLineID]);
+				SDL_RenderDrawLine(
+					renderer,
+					position.x,
+					position.y,
+					position.x + (20*cos(normalAngle)),
+					position.y + (20*sin(normalAngle))
+				);
+				
+				direction = getBounceReflection(direction,normalAngle);
+				
+				if (bounces >= numberOfBounces) {
+					return 1;
+				} else {
+					bounces++;
+				}
 			}
 			
 			return 0;
@@ -395,13 +428,15 @@ int clearScreenBuffer() {
 }
 
 void drawSky() {
-    SDL_SetRenderDrawColor(renderer, skyLight.r, skyLight.g, skyLight.b, 255);
-	for (int i = 0; i < WINDOW_HEIGHT/2; i++) {
-		SDL_RenderDrawLine(renderer, 0, i, WINDOW_WIDTH, i);
-	}
-    SDL_SetRenderDrawColor(renderer, skyLight.r/7, skyLight.g/7, skyLight.b/7, 255);
-	for (int i = WINDOW_HEIGHT/2; i < WINDOW_HEIGHT; i++) {
-		SDL_RenderDrawLine(renderer, 0, i, WINDOW_WIDTH, i);
+	if (!topDown) {
+		SDL_SetRenderDrawColor(renderer, skyLight.r, skyLight.g, skyLight.b, 255);
+		for (int i = 0; i < WINDOW_HEIGHT/2; i++) {
+			SDL_RenderDrawLine(renderer, 0, i, WINDOW_WIDTH, i);
+		}
+		SDL_SetRenderDrawColor(renderer, skyLight.r/7, skyLight.g/7, skyLight.b/7, 255);
+		for (int i = WINDOW_HEIGHT/2; i < WINDOW_HEIGHT; i++) {
+			SDL_RenderDrawLine(renderer, 0, i, WINDOW_WIDTH, i);
+		}
 	}
 }
 
@@ -466,9 +501,10 @@ int WinMain(int argc, char **argv) {
 	// Camera Origin
 	origin.x = WINDOW_WIDTH/2;
 	origin.y = WINDOW_HEIGHT/2;
+	fovAngle = 180.0f;
 	RayArray[1] = *new Ray();
 
-	/*
+	
 	// Lines
 	//LineArray[1] = *new Line(200	,200	,400	,200	,1.0, 0.0, 0.0	);
 	LineArray[2] = *new Line(400	,400	,400	,200	,0.0, 1.0, 0.0	);
@@ -481,10 +517,10 @@ int WinMain(int argc, char **argv) {
 	LineArray[8] = *new Line(0 				,WINDOW_HEIGHT	,0				,0				,1.0, 1.0, 1.0	);
 	
 	// Lights
-	LightArray[1] = *new PointLight(WINDOW_WIDTH	, 300,1.0	,1.0	,1.0	,0.5f	,128.0f	);
+	LightArray[1] = *new PointLight(WINDOW_WIDTH-5	, 300,1.0	,1.0	,1.0	,1.0f	,128.0f	);
 	LightArray[2] = *new PointLight(WINDOW_WIDTH/2	, WINDOW_HEIGHT/2,1.0	,1.0	,1.0	,1.0f	,512.0f	);
-	*/
 	
+	/*
 	// Light Position
 	LightArray[1] = *new PointLight(WINDOW_WIDTH/3	,WINDOW_HEIGHT/2,1.0	,1.0	,1.0	,1.0f	,128.0f	);
 	LightArray[2] = *new PointLight(WINDOW_WIDTH/3*2,20.0f			,1.0	,1.0	,1.0	,2.0f	,512.0f	);
@@ -517,7 +553,7 @@ int WinMain(int argc, char **argv) {
 	LineArray[6] = *new Line(corner1,corner3,segment1);
 	LineArray[7] = *new Line(corner2,corner3,segment1);
 	LineArray[8] = *new Line(corner2,corner4,segment1);
-	
+	*/
 	
     while (running) {
 		// Start new frame
@@ -550,14 +586,15 @@ int WinMain(int argc, char **argv) {
 		for (currentPixel = 0; currentPixel < WINDOW_WIDTH; currentPixel++) {
 			// Send out a Ray from the camera
 			RayArray[1].position = origin;
+			// Reset number of successful bounces
+			RayArray[1].bounces = 0;
 			// This is where the FoV magically appears!
 			RayArray[1].direction = (fovAngle + ((fieldOfView/2)*-1)) + (fieldOfView/WINDOW_WIDTH*currentPixel);
 			
-			//
 			for (int i = 0; i <= renderSteps; i++) {
 				Point previousPosition = RayArray[1].position;
 				bool finishedLine = RayArray[1].step();
-				if (topDown && !(currentPixel%20)) {
+				if (topDown && !(currentPixel%60)) {
 					SDL_SetRenderDrawColor(renderer, 255, 0, 0, 20);
 					SDL_RenderDrawLine(renderer, (int)previousPosition.x, (int)previousPosition.y, (int)RayArray[1].position.x, (int)RayArray[1].position.y);
 				}
@@ -565,13 +602,13 @@ int WinMain(int argc, char **argv) {
 				// Stop rendering if we hit a wall
 				if (finishedLine) {
 					break;
-				} else {				
+				}/* else {				
 					// If we never hit a wall, infinite distance
 					if (i == renderSteps) {
 						screen[currentPixel].distance = maxDistance;
 						break;
 					}
-				}
+				}*/
 			}
 			//SDL_RenderPresent(renderer);
 		}
@@ -579,7 +616,7 @@ int WinMain(int argc, char **argv) {
 		
 		// Render result to screen
 		drawSky();
-		for (currentPixel = 0; currentPixel < WINDOW_WIDTH; currentPixel++) {
+		for (currentPixel = 0; currentPixel < WINDOW_WIDTH ; currentPixel++) {
 			SDL_SetRenderDrawColor(
 				renderer,
 				(int)(clamp(screen[currentPixel].c.r,0.0f,1.0f)*255),
