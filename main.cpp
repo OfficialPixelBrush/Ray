@@ -337,6 +337,34 @@ class Ray {
 			}
 			//printf("%d %d -> %d %d\n", (int)previousPosition.x, (int)previousPosition.y, (int)position.x, (int)position.y);
 			
+			// Floorlight
+			/*
+			Color pointColor;
+			pointColor.r = 0.0;
+			pointColor.g = 0.0;
+			pointColor.b = 0.0;
+			for (int currentLightID = 1; currentLightID <= numberOfLights; currentLightID++) {
+				// Get current Light
+				PointLight currentLight = LightArray[currentLightID];
+				int lightLineID = checkIfAnyLinesIntersect(position,currentLight.position);
+				if (!lightLineID) {
+					if (getDistance(position,currentLight.position) < currentLight.distance) {
+						float distanceToLight = getDistance(position,currentLight.position);
+						float normalizedLight = (1.0-(distanceToLight/currentLight.distance)) * currentLight.brightness;
+						normalizedLight = pow(normalizedLight,2);
+						pointColor.r += ((currentLight.c.r * normalizedLight) / pow(bounces+1,2));
+						pointColor.g += ((currentLight.c.g * normalizedLight) / pow(bounces+1,2));
+						pointColor.b += ((currentLight.c.b * normalizedLight) / pow(bounces+1,2));
+					}
+				}
+			}
+				
+			float normalizedShade = 1-(getDistance(origin,position)/maxDistance);
+			pointColor.r *= pow(normalizedShade,2);
+			pointColor.g *= pow(normalizedShade,2);
+			pointColor.b *= pow(normalizedShade,2);
+			*/
+			
 			// Check for intersection
 			int intersectedLineID = checkIfAnyLinesIntersect(previousPosition,position);
 			if (intersectedLineID != 0) {
