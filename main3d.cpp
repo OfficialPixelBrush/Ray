@@ -85,6 +85,14 @@ float cameraSpeedUpDown = 0.0f;
 float cameraSpeedRotational = 0.0f;
 float fieldOfView = 80.0f;
 
+// Viewport
+float aspectRatio;
+float viewportHeight;
+float viewportWidth;
+float focalLength;
+float viewportU, viewportV;
+float pixelDeltaU, pixelDeltaV;
+
 // Convert Radian to Degree
 float radianToDegree(float radian) {
 	return radian * 180.0f/PI;
@@ -328,6 +336,14 @@ int WinMain(int argc, char **argv) {
 	origin.y = 0.0f;
 	origin.z = 0.0f;
 	cameraRotation = 180.0f;
+	
+	// Set up Viewport
+	aspectRatio = WINDOW_WIDTH/WINDOW_HEIGHT;
+	viewportHeight = 2.0f;
+	viewportWidth = viewportHeight * aspectRatio;
+	focalLength = 1.0f;
+
+	// Create ray
 	RayArray[1] = *new Ray();
 	
 	// This is where we load the scene
@@ -349,7 +365,7 @@ int WinMain(int argc, char **argv) {
 	triangleColor.b = 1.0;
 	TriangleArray[1] = *new Triangle(corner01,corner02,corner03,triangleColor);
 	
-    while (running) {
+    //while (running) {
 		// Start new frame
 		SDL_SetRenderDrawColor(renderer, 0, 0, 0, 0);
 		SDL_RenderClear(renderer);
@@ -378,13 +394,8 @@ int WinMain(int argc, char **argv) {
 						break;
 					}
 				}
-			}
-		}
-		
-		
-		// Render result to screen
-		for (currentPixelY = 0; currentPixelY < WINDOW_WIDTH ; currentPixelY++) {
-			for (currentPixelX = 0; currentPixelX < WINDOW_WIDTH ; currentPixelX++) {
+				
+				// Render result to screen
 				Color pixelColor = screen[currentPixelX][currentPixelY].color;
 				SDL_SetRenderDrawColor(
 					renderer,
@@ -393,17 +404,11 @@ int WinMain(int argc, char **argv) {
 					(int)(clamp(pixelColor.b,0.0f,1.0f)*255),
 					255
 				);
-				
-				// Weirdly bent for some reason,
-				// but I guess that's just down to how I shoot my rays
-				//printf("%f\n",sliceSize);
 				SDL_RenderDrawPoint (
 					renderer,
 					currentPixelX,
 					currentPixelY
 				);
-			
-				//SDL_RenderPresent(renderer);
 			}
 		}
 	
@@ -421,8 +426,8 @@ int WinMain(int argc, char **argv) {
 		
 		SDL_RenderPresent(renderer);
 		//running = false;
-		printf("%f %f %f: %f\n", origin.x, origin.y, origin.z, cameraRotation);
-    }
+		//printf("%f %f %f: %f\n", origin.x, origin.y, origin.z, cameraRotation);
+    //}
     SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);
     SDL_Quit();
