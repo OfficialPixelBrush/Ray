@@ -30,7 +30,7 @@ float fieldOfView = 90.0f;
 
 int numberOfRays = 1;
 int numberOfLines = 20;
-int numberOfLights = 5;
+int numberOfLights = 6;
 int numberOfBounces = 0;
 
 struct Point {
@@ -323,7 +323,7 @@ class Ray {
 			position.y += (RayStepSize*cos(rad));
 			
 			if (bounces == 0) {
-				for (int l = 1; l < numberOfLights; l++) {
+				for (int l = 1; l <= numberOfLights; l++) {
 					PointLight currentL = LightArray[l];
 					if (getDistance(position,currentL.position) < 5.0f){
 						float distance = getDistance(position,origin);
@@ -372,9 +372,9 @@ class Ray {
 							float normalizedLight = (1.0-(distanceToLight/currentLight.distance)) * currentLight.brightness;
 							normalizedLight = pow(normalizedLight,2);
 							//printf("NL: %f\n", normalizedLight);
-							screen[currentPixel].c.r += (LineArray[intersectedLineID].c.r * normalizedLight) / pow(bounces+1,2);
-							screen[currentPixel].c.g += (LineArray[intersectedLineID].c.g * normalizedLight) / pow(bounces+1,2);
-							screen[currentPixel].c.b += (LineArray[intersectedLineID].c.b * normalizedLight) / pow(bounces+1,2);
+							screen[currentPixel].c.r += (currentLight.c.r * LineArray[intersectedLineID].c.r * normalizedLight) / pow(bounces+1,2);
+							screen[currentPixel].c.g += (currentLight.c.g * LineArray[intersectedLineID].c.g * normalizedLight) / pow(bounces+1,2);
+							screen[currentPixel].c.b += (currentLight.c.b * LineArray[intersectedLineID].c.b * normalizedLight) / pow(bounces+1,2);
 							//printf("%f, %f, %f\n", screen[currentPixel].r, screen[currentPixel].g, screen[currentPixel].b);
 							//running = 0;
 						}
@@ -530,15 +530,35 @@ int WinMain(int argc, char **argv) {
 	LightArray = (struct PointLight *)calloc(numberOfLights+1, sizeof(struct PointLight));
 	
 	// Camera Origin
-	origin.x = WINDOW_WIDTH/2;
-	origin.y = WINDOW_HEIGHT/3*2-5;
+	origin.x = 640/2;
+	origin.y = 480/3*2-5;
 	fovAngle = 180.0f;
 	RayArray[1] = *new Ray();
 
 	// Scene is loaded here
+	LineArray[1] = *new Line(0	,0	,640*2,0	,1.0, 0.0, 0.0);
+	LineArray[2] = *new Line(640*2,480,640*2,0	,0.0, 1.0, 0.0);
+	LineArray[3] = *new Line(0	,480,640*2,480,0.0, 0.0, 1.0);
+	LineArray[4] = *new Line(0 	,480,0	,0	,1.0, 1.0, 1.0);
+	
+	// House
+	LineArray[5] = *new Line(100,180,400,180,1.0, 1.0, 1.0);
+	LineArray[6] = *new Line(200,180,200,280,1.0, 1.0, 1.0);
+	LineArray[7] = *new Line(200,280,300,280,1.0, 1.0, 1.0);
+	LineArray[8] = *new Line(400,180,400,480,1.0, 1.0, 1.0);
+	
+	// House
+	LineArray[9] =  *new Line(660,200,680,210,1.0, 1.0, 1.0);
+	LineArray[10] = *new Line(680,210,690,230,1.0, 1.0, 1.0);
+	LineArray[11] = *new Line(690,230,680,250,1.0, 1.0, 1.0);
+	LineArray[12] = *new Line(680,250,660,260,1.0, 1.0, 1.0);
+	LineArray[13] = *new Line(660,260,640,250,1.0, 1.0, 1.0);
+	LineArray[14] = *new Line(640,250,630,230,1.0, 1.0, 1.0);
+	LineArray[15] = *new Line(630,230,640,210,1.0, 1.0, 1.0);
+	LineArray[16] = *new Line(640,210,660,200,1.0, 1.0, 1.0);
 	
 	// Lines
-	LineArray[1] = *new Line(0					,0					,WINDOW_WIDTH		,0					,0.5, 0.5, 0.5	);
+	/*LineArray[1] = *new Line(0					,0					,WINDOW_WIDTH		,0					,0.5, 0.5, 0.5	);
 	LineArray[2] = *new Line(WINDOW_WIDTH		,WINDOW_HEIGHT		,WINDOW_WIDTH		,0					,0.5, 0.5, 0.5	);
 	LineArray[3] = *new Line(WINDOW_WIDTH		,WINDOW_HEIGHT		,0					,WINDOW_HEIGHT		,0.5, 0.5, 0.5	);
 	LineArray[4] = *new Line(0 					,WINDOW_HEIGHT		,0					,0					,0.5, 0.5, 0.5	);
@@ -550,11 +570,14 @@ int WinMain(int argc, char **argv) {
 	LineArray[7] = *new Line(WINDOW_WIDTH/3*2	,WINDOW_HEIGHT/3*2	,WINDOW_WIDTH/3*2	,WINDOW_HEIGHT/3	,0.0, 1.0, 0.0	);
 	LineArray[8] = *new Line(WINDOW_WIDTH/3*2	,WINDOW_HEIGHT/3*2	,WINDOW_WIDTH/3		,WINDOW_HEIGHT/3*2	,0.0, 0.0, 1.0	);
 	LineArray[9] = *new Line(WINDOW_WIDTH/3		,WINDOW_HEIGHT/3*2	,WINDOW_WIDTH/3		,WINDOW_HEIGHT/3	,1.0, 1.0, 1.0	);
-	
+	*/
 	// Lights
 	//LightArray[1] = *new PointLight(WINDOW_WIDTH-5	, 300,1.0	,1.0	,1.0	,1.0f	,128.0f	);
-	LightArray[1] = *new PointLight(WINDOW_WIDTH/2		, WINDOW_HEIGHT/2	,1.0	,1.0	,1.0	,1.0f	,512.0f	);
-	LightArray[2] = *new PointLight(WINDOW_WIDTH/5		, WINDOW_HEIGHT/5	,1.0	,1.0	,1.0	,1.0f	,512.0f	);
+	LightArray[1] = *new PointLight(640/2		, 480/2	,1.0	,1.0	,1.0	,1.0f	,512.0f	);
+	LightArray[2] = *new PointLight(640/5		, 480/5	,1.0	,1.0	,1.0	,1.0f	,640*2.0f	);
+	LightArray[3] = *new PointLight(770	, 110	,1.0	,0.0	,0.0	,1.0f	,512.0f	);
+	LightArray[4] = *new PointLight(500	, 260	,0.0	,1.0	,0.0	,1.0f	,512.0f	);
+	LightArray[5] = *new PointLight(760	, 350	,0.0	,0.0	,1.0	,1.0f	,512.0f	);
 	//LightArray[3] = *new PointLight(WINDOW_WIDTH/5*4	, WINDOW_HEIGHT/3*2	,1.0	,1.0	,1.0	,1.0f	,512.0f	);
 	/*LightArray[2] = *new PointLight(WINDOW_WIDTH/4*4	, WINDOW_HEIGHT/4,1.0	,1.0	,1.0	,1.0f	,512.0f	);
 	LightArray[3] = *new PointLight(WINDOW_WIDTH/4	, WINDOW_HEIGHT/4*4,1.0	,1.0	,1.0	,1.0f	,512.0f	);
@@ -600,11 +623,11 @@ int WinMain(int argc, char **argv) {
 	
     while (running) {
 		// LightAnimation
-		if (LightArray[2].position.x < WINDOW_WIDTH/5) {
+		if (LightArray[2].position.x < (640*2)/5) {
 			lightMotion = 5.0f;
 		}
 		
-		if (LightArray[2].position.x > WINDOW_WIDTH/5*4) {
+		if (LightArray[2].position.x > (640*2)/5*4) {
 			lightMotion = -5.0;
 		}
 		

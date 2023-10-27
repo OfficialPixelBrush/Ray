@@ -319,6 +319,14 @@ int processControls() {
 		return 0;
 }
 
+/*
+ * https://raytracing.github.io/books/RayTracingInOneWeekend.html#rays,asimplecamera,andbackground/sendingraysintothescene
+ * https://www.scratchapixel.com/lessons/3d-basic-rendering/introduction-to-ray-tracing/implementing-the-raytracing-algorithm.html
+ * https://www.scratchapixel.com/lessons/3d-basic-rendering/introduction-to-ray-tracing/adding-reflection-and-refraction.html
+ *
+ *
+ */
+
 int WinMain(int argc, char **argv) {
 	printf("Hello, World!\n");
 	srand(time(NULL)); 
