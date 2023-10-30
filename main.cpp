@@ -24,18 +24,20 @@ using namespace std;
 SDL_Event event;
 SDL_Renderer *renderer;
 SDL_Window *window;
+SDL_Texture *texture;
 
 float RayStepSize = 5.0f;
 int renderSteps = 200;
 float maxDistance = RayStepSize * renderSteps;
-float fieldOfView = 180.0f;
+float fieldOfView = 90.0f;
 
 int numberOfLines = 20;
 int numberOfLights = 6;
 int numberOfBounces = 0;
 int currentRenderStep = 0;
-int numberOfSectors = 2;
+int numberOfSectors = 1;
 int numberOfRays = numberOfSectors;
+bool frameDone = false;
 
 struct Point {
 	float x;
@@ -68,6 +70,7 @@ struct Line *LineArray;
 struct PointLight *LightArray;
 struct Color *BounceArray;
 struct Color *FloorLightArray;
+
 ScreenPixel screen[WINDOW_WIDTH];
 Point origin;
 bool running = true;
@@ -79,6 +82,7 @@ bool topDown = false;
 bool renderMode = false;
 Color skyLight;
 Color floorColor;
+float maxSpeed = 6.0f;
 
 // A primitive PointLight
 class PointLight {
@@ -506,25 +510,9 @@ void drawSky() {
 
 int processControls() {
 		const Uint8 *keys = SDL_GetKeyboardState(NULL);
-		cameraSpeedHorziontal /= 1.2;
-		cameraSpeedVertical /= 1.2;
-		cameraSpeedRotational /= 1.2;
-		
-		if (keys[SDL_SCANCODE_T]) {
-			renderMode = !renderMode;
-			if (renderMode) {
-				renderSteps = 1000;
-				RayStepSize = 1.0f;
-				//printf("On");
-			} else {
-				renderSteps = 200;
-				RayStepSize = 5.0f;
-				//printf("Off");
-			}
-			maxDistance = RayStepSize * renderSteps;
-			free(FloorLightArray);
-			FloorLightArray = (struct Color *)calloc(WINDOW_WIDTH*renderSteps+1, sizeof(struct Color));
-		}
+		cameraSpeedHorziontal /= 2.0f;
+		cameraSpeedVertical /= 2.0f;
+		cameraSpeedRotational /= 2.0f;
 		
 		// Forward
         if (keys[SDL_SCANCODE_W]) {
@@ -567,6 +555,28 @@ int processControls() {
 		return 0;
 }
 
+void updateInputs() {
+	while(running) {		
+		processControls();
+		
+		// Update Origin
+		origin.x += cameraSpeedHorziontal;
+		origin.y += cameraSpeedVertical;
+		fovAngle += cameraSpeedRotational;
+		
+		if (cameraSpeedHorziontal >= maxSpeed) {
+			cameraSpeedHorziontal = maxSpeed;
+		}
+		if (cameraSpeedVertical >= maxSpeed) {
+			cameraSpeedVertical = maxSpeed;
+		}
+		if (cameraSpeedRotational >= maxSpeed) {
+			cameraSpeedRotational = maxSpeed;
+		}
+		SDL_Delay(16);
+	}
+}
+
 int loadColor(const Color& color) {
 	SDL_SetRenderDrawColor(
 		renderer,
@@ -578,7 +588,7 @@ int loadColor(const Color& color) {
 	return 0;
 }
 
-void renderPixel(Ray& currentRay) {	
+void renderColumn(Ray& currentRay) {	
 	// Send out a Ray from the camera
 	currentRay.position = origin;
 	// Reset number of successful bounces
@@ -618,25 +628,112 @@ int renderSector(Ray& currentRay) {
 	int start = currentRay.currentPixel;
 	int finish = currentRay.currentPixel + (WINDOW_WIDTH/numberOfSectors);
 	while (currentRay.currentPixel < finish) {
-		renderPixel(currentRay);
+		screen[currentRay.currentPixel].c.r = 0;
+		screen[currentRay.currentPixel].c.g = 0;
+		screen[currentRay.currentPixel].c.b = 0;
+		renderColumn(currentRay);
 		currentRay.currentPixel++;
 	}
 	return 0;
 }
 
+void updateScreen() {
+	while(running) {
+		// Start new frame
+		//SDL_SetRenderDrawColor(renderer, 0, 0, 0, 0);
+		//SDL_RenderClear(renderer);
+		if (frameDone) {
+			for (int currentColumn = 0; currentColumn < WINDOW_WIDTH ; currentColumn++) {
+				Color renderColor = screen[currentColumn].c;
+				/*
+				renderColor.r += skyLight.r/5;
+				renderColor.g += skyLight.g/5;
+				renderColor.b += skyLight.b/5;
+				*/
+				
+				if (topDown) {
+					loadColor(renderColor);
+					SDL_RenderDrawLine(
+						renderer,
+						WINDOW_WIDTH-currentColumn,
+						0,
+						WINDOW_WIDTH-currentColumn,
+						10);
+				} else {
+					// Ground shadows first
+					float sliceSize = (WINDOW_HEIGHT/6) * (log((screen[currentColumn].distance / maxDistance)));
+					
+					int lastPos = WINDOW_HEIGHT;
+					for (int lightRow = 1; lightRow <= renderSteps; lightRow++) {
+						//int scaled = WINDOW_HEIGHT-lightRow;
+						float projectedPixel = (WINDOW_HEIGHT/6) * (log(((float)lightRow)/((float)renderSteps)));
+						Color pointColor = FloorLightArray[lightRow + currentColumn*renderSteps];
+						float resultPixel = (WINDOW_HEIGHT/2-(projectedPixel));
+						
+						if (projectedPixel < sliceSize) {
+							//printf("%f", projectedPixel);
+							//goto end;
+							while (lastPos >= resultPixel) {
+								loadColor(pointColor);
+								// Utilize SDL_LockSurface
+								SDL_RenderDrawPoint(
+									renderer,
+									WINDOW_WIDTH-currentColumn,
+									lastPos
+								);
+								SDL_RenderDrawPoint(
+									renderer,
+									WINDOW_WIDTH-currentColumn,
+									WINDOW_HEIGHT-lastPos
+								);
+								lastPos--;
+							}
+						}
+					}
+					// Weirdly bent for some reason,
+					// but I guess that's just down to how I shoot my rays
+					loadColor(renderColor);
+					SDL_RenderDrawLine(
+						renderer,
+						WINDOW_WIDTH-currentColumn,
+						WINDOW_HEIGHT/2-sliceSize,
+						WINDOW_WIDTH-currentColumn,
+						WINDOW_HEIGHT/2+sliceSize
+					);
+				}
+			}
+			//SDL_RenderPresent(renderer);
+			//clearScreenBuffer();
+			//SDL_RenderPresent(renderer);
+			frameDone = false;
+		}
+		//SDL_Delay(16);
+		SDL_LockSurface(surface);
+		uint8_t *pixels = (uint8_t*)surface->pixels;
+		int y = 20;
+		for (int x = 0; x <= WINDOW_WIDTH; x++) {
+			pixels[y * surface->pitch + x * surface->format->BytesPerPixel] = 0xFF;
+		}
+		SDL_UnlockSurface(surface);
+		SDL_UpdateWindowSurface(window);
+		SDL_RenderPresent(renderer);
+	}
+}
+
 int WinMain(int argc, char **argv) {
 	printf("Hello, World!\n");
-	srand(time(NULL)); 
+	//srand(time(NULL)); 
 	
     //SDL_Init(SDL_INIT_VIDEO);
 	SDL_Window *window = SDL_CreateWindow("Ray", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, WINDOW_WIDTH, WINDOW_HEIGHT, SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE );
     CHECK_ERROR(window == NULL, SDL_GetError());
 	
-    renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED ); 
+    renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC ); 
 	CHECK_ERROR(renderer == NULL, SDL_GetError());
 	
     SDL_SetRenderDrawColor(renderer, 0, 0, 0, 0);
     SDL_RenderClear(renderer);
+	texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_STREAMING, WINDOW_WIDTH, WINDOW_HEIGHT);
 			
 	skyLight.r = 0.1f;
 	skyLight.g = 0.3f;
@@ -744,10 +841,13 @@ int WinMain(int argc, char **argv) {
 	LineArray[7] = *new Line(corner2,corner3,segment1);
 	LineArray[8] = *new Line(corner2,corner4,segment1);
 	*/
-	float maxSpeed = 10.0f;
 	float lightMotion = -10.0;
 	
-	std::vector<std::thread> threadPool;
+	std::vector<std::thread> raytraceThreadPool;
+	std::vector<std::thread> renderThreadPool;
+	std::thread gameplayThread(updateInputs);
+	
+	renderThreadPool.emplace_back(updateScreen);
 	
     while (running) {
 		// LightAnimation
@@ -762,26 +862,6 @@ int WinMain(int argc, char **argv) {
 	
 		LightArray[2].position.x+=lightMotion;
 		*/
-		
-		// Start new frame
-		SDL_SetRenderDrawColor(renderer, 0, 0, 0, 0);
-		SDL_RenderClear(renderer);
-		clearScreenBuffer();
-		
-		// Update Origin
-		origin.x += cameraSpeedHorziontal;
-		origin.y += cameraSpeedVertical;
-		fovAngle += cameraSpeedRotational;
-		
-		if (cameraSpeedHorziontal >= maxSpeed) {
-			cameraSpeedHorziontal = maxSpeed;
-		}
-		if (cameraSpeedVertical >= maxSpeed) {
-			cameraSpeedVertical = maxSpeed;
-		}
-		if (cameraSpeedRotational >= maxSpeed) {
-			cameraSpeedRotational = maxSpeed;
-		}
 		
 		if (topDown) {
 			// Render Lights
@@ -802,110 +882,37 @@ int WinMain(int argc, char **argv) {
 		// Go over every pixel in the Field of View
 		
 		for (int currentSector = 0; currentSector < numberOfSectors; currentSector++) {
-			//printf("%d,", currentCollumn);
+			//printf("%d,", currentColumn);
 			Ray& currentRay = RayArray[currentSector];
 			currentRay.currentPixel = (WINDOW_WIDTH/numberOfSectors)*currentSector;
-			threadPool.emplace_back([&currentRay]() { renderSector(currentRay); });
-			//renderPixel(currentRay);
+			raytraceThreadPool.emplace_back([&currentRay]() { renderSector(currentRay); });
+			//renderColumn(currentRay);
 		}
 		
-		// The magic of threading :^)
-		for (auto& t : threadPool) {
+		// The magic of threading
+		for (auto& t : raytraceThreadPool) {
 			if (t.joinable()) {
 				t.join();
 			}
 		}
-		//threadPool.clear();
-		//printf("Frame Done\n");
-
+		frameDone = true;
 		
-		// Render result to screen
-		//drawSky();
-		for (int currentCollumn = 0; currentCollumn < WINDOW_WIDTH ; currentCollumn++) {
-			Color renderColor = screen[currentCollumn].c;
-			/*
-			renderColor.r += skyLight.r/5;
-			renderColor.g += skyLight.g/5;
-			renderColor.b += skyLight.b/5;
-			*/
-			
-			if (topDown) {
-				loadColor(renderColor);
-				SDL_RenderDrawLine(
-					renderer,
-					WINDOW_WIDTH-currentCollumn,
-					0,
-					WINDOW_WIDTH-currentCollumn,
-					10);
-			} else {
-				// Ground shadows first
-				float sliceSize = (WINDOW_HEIGHT/6) * (log((screen[currentCollumn].distance / maxDistance)));
-				int lastPos = WINDOW_HEIGHT;
-				for (int lightRow = 1; lightRow <= renderSteps; lightRow++) {
-					//int scaled = WINDOW_HEIGHT-lightRow;
-					float projectedPixel = (WINDOW_HEIGHT/6) * (log(((float)lightRow)/((float)renderSteps)));
-					Color pointColor = FloorLightArray[lightRow + currentCollumn*renderSteps];
-					int resultPixel = (WINDOW_HEIGHT/2-(projectedPixel));
-					//printf("%d > %d\n", resultPixel, lastPos-lastPosSteps);
-					/*
-					pointColor.r += skyLight.r/5;
-					pointColor.g += skyLight.g/5;
-					pointColor.b += skyLight.b/5;
-					*/
-					
-					if (projectedPixel < sliceSize) {
-						//printf("%f", projectedPixel);
-						//goto end;
-						while (lastPos >= resultPixel) {
-							loadColor(pointColor);
-							// Utilize SDL_LockSurface
-							SDL_RenderDrawPoint(
-								renderer,
-								WINDOW_WIDTH-currentCollumn,
-								lastPos
-							);
-							SDL_RenderDrawPoint(
-								renderer,
-								WINDOW_WIDTH-currentCollumn,
-								WINDOW_HEIGHT-lastPos
-							);
-							lastPos--;
-						}
-						/*
-						SDL_RenderDrawPoint(
-							renderer,
-							WINDOW_WIDTH-currentPixel,
-							(int)(WINDOW_HEIGHT-(WINDOW_HEIGHT/2-projectedPixel))
-						);*/
-					}
-				}
-				// Weirdly bent for some reason,
-				// but I guess that's just down to how I shoot my rays
-				loadColor(renderColor);
-				SDL_RenderDrawLine(
-					renderer,
-					WINDOW_WIDTH-currentCollumn,
-					WINDOW_HEIGHT/2-sliceSize,
-					WINDOW_WIDTH-currentCollumn,
-					WINDOW_HEIGHT/2+sliceSize
-				);
-			}
-		}
-		SDL_RenderPresent(renderer);
+		// Update Screen handled by Render Thread
+		//updateScreen();
 	
         /*! updates the array of keystates */
-        while ((SDL_PollEvent(&event)) != 0)
-        {
-            /*! request quit */
-            if (event.type == SDL_QUIT) 
-            { 
-                running = false;
-            }
-        }
-		
-		processControls();
 		//running = false;
-		SDL_Delay(16);
+		while ((SDL_PollEvent(&event)) != 0)
+		{
+			/*! request quit */
+			if (event.type == SDL_QUIT) 
+			{ 
+				running = false;
+			}
+		}
+		
+		// Keystrokes are processed in keystroke thread
+		//processControls();
     }
 	end:
     SDL_DestroyRenderer(renderer);
