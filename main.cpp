@@ -47,7 +47,7 @@ typedef struct Color Color;
 // Screen Column Struct, containing an RGB Pixel color, and the distance it has
 struct ScreenColumn {
 	Color color;
-	float distance;
+	int amountOfRaySteps;
 };
 typedef struct ScreenColumn ScreenColumn;
 
@@ -86,8 +86,8 @@ int numberOfRays = numberOfRenderSectors;
 /* ---- Camera Variables ---- */
 Point cameraPosition;
 float cameraRotation = 0.0f;
-float fieldOfView = 90.0f;
-float maxRenderDistance = 1024.0f;
+float fieldOfView = 180.0f;
+float horizonDistance = 16.0f;
 float initialRayStepSize = 1.0f;
 
 
@@ -312,6 +312,20 @@ int intClamp(int in, int min, int max) {
 	return in;
 }
 
+// Prevent overflow of angular rotation
+int limitDegreeAngle(float& degreeAngle) {
+	degreeAngle = fmod(degreeAngle,360.0f);
+	return 0;
+}
+
+/* ---- TEXTURE FUNCTIONS ---- */
+
+// Get point along line
+float getTextureColumnAlongLine(Point hitPosition, Line line) {
+	float columnOnLine = 0.0f;
+	return columnOnLine;
+}
+
 /* ---- INPUT HANDLING ---- */
 void PrintKeyInfo( SDL_KeyboardEvent *key ){
 	/* Is it a release or a press? */
@@ -383,7 +397,9 @@ void updateInputs() {
 		cameraPosition.x += cameraSpeedHorziontal;
 		cameraPosition.y += cameraSpeedVertical;
 		cameraRotation += cameraSpeedRotational;
+		limitDegreeAngle(cameraRotation);
 		
+		// Limit to maxSpeed
 		if (cameraSpeedHorziontal >= maxSpeed) {
 			cameraSpeedHorziontal = maxSpeed;
 		}
@@ -475,13 +491,13 @@ class Ray {
 		int step() {
 			//printf("%f\n",RayStepSize);
 			//RayStepSize = pow((float)stepCount/(float)(WINDOW_HEIGHT/2),3)*3;
-			RayStepSize = 2.0f;//pow((float)stepCount/(float)(WINDOW_HEIGHT/2),3)*3;
+			RayStepSize = ((float)stepCount/(float)(WINDOW_HEIGHT/2))*horizonDistance;
 			//printf("%f\n",RayStepSize);
 			Point previousPosition = position;
 			float rad = degreeToRadian(direction);
 			position.x += (RayStepSize*sin(rad));
 			position.y += (RayStepSize*cos(rad));
-			//(getDistance(position,cameraPosition)/maxRenderDistance) * WINDOW_HEIGHT/6;
+			//(getDistance(position,cameraPosition)/horizonDistance) * WINDOW_HEIGHT/6;
 			//printf("%f\n",RayStepSize);
 			
 			// Draws those cool light columns
@@ -495,7 +511,7 @@ class Ray {
 					screen[currentColumn].color.r = (currentLightObject.color.r);
 					screen[currentColumn].color.g = (currentLightObject.color.g);
 					screen[currentColumn].color.b = (currentLightObject.color.b);
-					screen[currentColumn].distance = distance;
+					screen[currentColumn].amountOfRaySteps = stepCount;
 					return 1;
 				}
 			}
@@ -514,7 +530,7 @@ class Ray {
 				position = previousPosition;
 				
 				// Get distance to camera
-				screen[currentColumn].distance = getDistance(position, cameraPosition);
+				screen[currentColumn].amountOfRaySteps = stepCount;//getDistance(position, cameraPosition);
 				
 				// Light Distance Shading
 				if (intersectedLineObject->emissive) {
@@ -560,12 +576,10 @@ class Ray {
 			}
 			
 			// Distance Based Shade	
-			/*
-			float normalizedShade = 1.0f-(getDistance(cameraPosition,position)/maxRenderDistance);
-			resultingColor.r *= pow(normalizedShade,2);
-			resultingColor.g *= pow(normalizedShade,2);
-			resultingColor.b *= pow(normalizedShade,2);	
-			*/
+			float normalizedShade = 1.0f-((float)stepCount/(float)(WINDOW_HEIGHT/2));
+			resultingColor.r *= normalizedShade;
+			resultingColor.g *= normalizedShade;
+			resultingColor.b *= normalizedShade;
 			
 			// Clamp results from 0.0f to 1.0f
 			resultingColor.r = clamp(resultingColor.r, 0.0f, 1.0f);
@@ -577,9 +591,18 @@ class Ray {
 
 
 // Raytrace Render Column
-void traceColumn(Ray& currentRay) {	
+void traceColumn(Ray& currentRay) {
+	// Send ray out from viewport
+	float nearClipPlane = 1.0f;
+	Point nearClipPlanePosition = cameraPosition;
+	// TODO: Make this work
+	float nearClipPlaneCenterRotation = (cameraRotation + ((fieldOfView/2)*-1)) + (fieldOfView/2);
+	printf("%f\n",nearClipPlaneCenterRotation);
+	nearClipPlanePosition.x += (nearClipPlane*sin(nearClipPlaneCenterRotation));
+	nearClipPlanePosition.y += (nearClipPlane*cos(nearClipPlaneCenterRotation));
+	
 	// Send out a Ray from the camera
-	currentRay.position = cameraPosition;
+	currentRay.position = nearClipPlanePosition;
 	// This is where the FoV magically appears!
 	currentRay.direction = (cameraRotation + ((fieldOfView/2)*-1)) + (fieldOfView/WINDOW_WIDTH*currentRay.currentColumn);
 
@@ -598,7 +621,7 @@ void traceColumn(Ray& currentRay) {
 		} else {
 			// If we never hit a wall, infinite distance
 			if (currentRenderStep == WINDOW_HEIGHT/2+1) {
-				screen[currentRay.currentColumn].distance = maxRenderDistance;
+				screen[currentRay.currentColumn].amountOfRaySteps = WINDOW_HEIGHT/2;// horizonDistance;
 				break;
 			}
 		}
@@ -636,7 +659,7 @@ int loadColor(const Color& color) {
 void updateScreen() {
 	void *texture_pixels;
 	int texture_pitch;
-	float sliceSize;
+	int sliceSize;
 	uint8_t *pixel;
 	// Could probably also be given to multiple threads
 	while(running) {
@@ -651,15 +674,12 @@ void updateScreen() {
 				Color* renderColor = &currentScreenColumn->color;
 				
 				// Calculate Size of column
-				//sliceSize = abs((WINDOW_HEIGHT/6) * (log((currentScreenColumn->distance / maxRenderDistance))));
-				//sliceSize = abs((WINDOW_HEIGHT/6) * (1.0f-((currentScreenColumn->distance / maxRenderDistance))));
-				//printf("%d, %f:\n",currentColumn, sliceSize);
-				sliceSize = pow(1.0f-((currentScreenColumn->distance / maxRenderDistance)),3) * (WINDOW_HEIGHT/2);
+				sliceSize = currentScreenColumn->amountOfRaySteps;
 				
 				// Render Column
-				for (int currentRow = WINDOW_HEIGHT/2-sliceSize; currentRow < WINDOW_HEIGHT/2+sliceSize; currentRow++) {
-					//printf("\t%d,",currentRow);
-					pixel = (uint8_t *)texture_pixels + intClamp(currentRow, 0, WINDOW_HEIGHT) * texture_pitch + (WINDOW_WIDTH-currentColumn) * 4;
+				for (int currentRow = sliceSize; currentRow <= WINDOW_HEIGHT-sliceSize; currentRow++) {
+					// Render Wall
+					pixel = (uint8_t *)texture_pixels + currentRow * texture_pitch + (WINDOW_WIDTH-currentColumn) * 4;
 					pixel[0] = (uint8_t)(renderColor->r*255);
 					pixel[1] = (uint8_t)(renderColor->g*255);
 					pixel[2] = (uint8_t)(renderColor->b*255);
@@ -667,24 +687,23 @@ void updateScreen() {
 				}
 				
 				// Render Floor and Ceiling
-				for (int floorRow = WINDOW_HEIGHT/2; floorRow >= 0; floorRow--) {
-					if (floorRow <= WINDOW_HEIGHT/2-sliceSize) {
-						Color* pointColor = &FloorLightArray[floorRow + currentColumn*(WINDOW_HEIGHT/2)];
-						//int resultPixel = (int)(WINDOW_HEIGHT/2-(projectedPixel));
-						
-						pixel = (uint8_t *)texture_pixels + (WINDOW_HEIGHT-floorRow) * texture_pitch + (WINDOW_WIDTH-currentColumn) * 4;
-						//printf("%f, %d, %d\n", sliceSize, floorRow, WINDOW_HEIGHT-floorRow);
-						pixel[0] = (uint8_t)(pointColor->r*255);
-						pixel[1] = (uint8_t)(pointColor->g*255);
-						pixel[2] = (uint8_t)(pointColor->b*255);
-						pixel[3] = 0xFF;
-						
-						pixel = (uint8_t *)texture_pixels + (int)(floorRow) * texture_pitch + (WINDOW_WIDTH-currentColumn) * 4;
-						pixel[0] = (uint8_t)(pointColor->r*255);
-						pixel[1] = (uint8_t)(pointColor->g*255);
-						pixel[2] = (uint8_t)(pointColor->b*255);
-						pixel[3] = 0xFF;
-					}
+				for (int floorRow = 0; floorRow < sliceSize; floorRow++) {
+					Color* pointColor = &FloorLightArray[floorRow + currentColumn*(WINDOW_HEIGHT/2)];
+					
+					pixel = (uint8_t *)texture_pixels + (WINDOW_HEIGHT-floorRow) * texture_pitch + (WINDOW_WIDTH-currentColumn) * 4;
+					
+					// Render Floor
+					pixel[0] = (uint8_t)(pointColor->r*255);
+					pixel[1] = (uint8_t)(pointColor->g*255);
+					pixel[2] = (uint8_t)(pointColor->b*255);
+					pixel[3] = 0xFF;
+					
+					// Render Ceiling
+					pixel = (uint8_t *)texture_pixels + floorRow * texture_pitch + (WINDOW_WIDTH-currentColumn) * 4;
+					pixel[0] = (uint8_t)(pointColor->r*255);
+					pixel[1] = (uint8_t)(pointColor->g*255);
+					pixel[2] = (uint8_t)(pointColor->b*255);
+					pixel[3] = 0xFF;
 				}
 			}
 			SDL_UnlockTexture(texture);
@@ -694,7 +713,7 @@ void updateScreen() {
 			// but I guess that's just down to how I shoot my rays
 			/*
 			for (int currentColumn = 0; currentColumn < WINDOW_WIDTH ; currentColumn++) {
-				sliceSize = (WINDOW_HEIGHT/6) * (log((screen[currentColumn].distance / maxRenderDistance)));
+				sliceSize = (WINDOW_HEIGHT/6) * (log((screen[currentColumn].distance / horizonDistance)));
 				Color renderColor = screen[currentColumn].color;
 				loadColor(renderColor);
 				SDL_RenderDrawLine(
@@ -731,7 +750,7 @@ int WinMain(int argc, char **argv) {
 		SDL_WINDOWPOS_UNDEFINED,
 		WINDOW_WIDTH,
 		WINDOW_HEIGHT,
-		SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE// | SDL_WINDOW_FULLSCREEN_DESKTOP
+		SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE // | SDL_WINDOW_FULLSCREEN_DESKTOP
 	);
     CHECK_ERROR(window == NULL, SDL_GetError());
 	
