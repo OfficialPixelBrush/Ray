@@ -86,7 +86,7 @@ int numberOfRays = numberOfRenderSectors;
 /* ---- Camera Variables ---- */
 Point cameraPosition;
 float cameraRotation = 0.0f;
-float fieldOfView = 180.0f;
+float fieldOfView = 90.0f;
 float maxRenderDistance = 1024.0f;
 float initialRayStepSize = 0.01f;
 
@@ -474,7 +474,8 @@ class Ray {
 		// Used to step through the Ray until a wall is hit
 		int step() {
 			//printf("%f\n",RayStepSize);
-			RayStepSize = ((float)stepCount/(float)(WINDOW_HEIGHT/2))*1.0f;
+			//RayStepSize = pow((float)stepCount/(float)(WINDOW_HEIGHT/2),3)*3;
+			RayStepSize = 1.0f;
 			//printf("%f\n",RayStepSize);
 			Point previousPosition = position;
 			float rad = degreeToRadian(direction);
@@ -559,10 +560,12 @@ class Ray {
 			}
 			
 			// Distance Based Shade	
+			/*
 			float normalizedShade = 1.0f-(getDistance(cameraPosition,position)/maxRenderDistance);
 			resultingColor.r *= pow(normalizedShade,2);
 			resultingColor.g *= pow(normalizedShade,2);
 			resultingColor.b *= pow(normalizedShade,2);	
+			*/
 			
 			// Clamp results from 0.0f to 1.0f
 			resultingColor.r = clamp(resultingColor.r, 0.0f, 1.0f);
@@ -633,7 +636,6 @@ int loadColor(const Color& color) {
 void updateScreen() {
 	void *texture_pixels;
 	int texture_pitch;
-	int lastPos;
 	float sliceSize;
 	uint8_t *pixel;
 	// Could probably also be given to multiple threads
@@ -650,11 +652,11 @@ void updateScreen() {
 				
 				// Calculate Size of column
 				//sliceSize = abs((WINDOW_HEIGHT/6) * (log((currentScreenColumn->distance / maxRenderDistance))));
-				sliceSize = abs((WINDOW_HEIGHT/6) * (1.0f-((currentScreenColumn->distance / maxRenderDistance))));
+				//sliceSize = abs((WINDOW_HEIGHT/6) * (1.0f-((currentScreenColumn->distance / maxRenderDistance))));
 				//printf("%d, %f:\n",currentColumn, sliceSize);
 				
 				// Render Column
-				for (int currentRow = WINDOW_HEIGHT/2-sliceSize; currentRow < WINDOW_HEIGHT/2+sliceSize; currentRow++) {
+				for (int currentRow = 0; currentRow < WINDOW_HEIGHT/2; currentRow++) {
 					//printf("\t%d,",currentRow);
 					pixel = (uint8_t *)texture_pixels + intClamp(currentRow, 0, WINDOW_HEIGHT) * texture_pitch + (WINDOW_WIDTH-currentColumn) * 4;
 					pixel[0] = (uint8_t)(renderColor->r*255);
@@ -664,25 +666,25 @@ void updateScreen() {
 				}
 				
 				// Render Floor and Ceiling
-				lastPos = WINDOW_HEIGHT;
-				for (int floorRow = 0; floorRow <= (WINDOW_HEIGHT/2)-sliceSize; floorRow++) {
+				
+				for (int floorRow = WINDOW_HEIGHT/2; floorRow >= 0; floorRow--) {
 					//float projectedPixel = (WINDOW_HEIGHT/6) * (log(((float)floorRow)/((float)(WINDOW_HEIGHT/2))));
 					// 
 					Color* pointColor = &FloorLightArray[floorRow + currentColumn*(WINDOW_HEIGHT/2)];
 					//int resultPixel = (int)(WINDOW_HEIGHT/2-(projectedPixel));
 					
-					pixel = (uint8_t *)texture_pixels + intClamp(WINDOW_HEIGHT-floorRow, 0, WINDOW_HEIGHT) * texture_pitch + (WINDOW_WIDTH-currentColumn) * 4;
+					pixel = (uint8_t *)texture_pixels + (WINDOW_HEIGHT-floorRow) * texture_pitch + (WINDOW_WIDTH-currentColumn) * 4;
 					//printf("%f, %d, %d\n", sliceSize, floorRow, WINDOW_HEIGHT-floorRow);
 					pixel[0] = (uint8_t)(pointColor->r*255);
 					pixel[1] = (uint8_t)(pointColor->g*255);
 					pixel[2] = (uint8_t)(pointColor->b*255);
 					pixel[3] = 0xFF;
 					
-					pixel = (uint8_t *)texture_pixels + (int)(floorRow) * texture_pitch + (WINDOW_WIDTH-currentColumn) * 4;
+					/*pixel = (uint8_t *)texture_pixels + (int)(floorRow) * texture_pitch + (WINDOW_WIDTH-currentColumn) * 4;
 					pixel[0] = (uint8_t)(pointColor->r*255);
 					pixel[1] = (uint8_t)(pointColor->g*255);
 					pixel[2] = (uint8_t)(pointColor->b*255);
-					pixel[3] = 0xFF;
+					pixel[3] = 0xFF;*/
 				}
 			}
 			SDL_UnlockTexture(texture);
@@ -819,6 +821,7 @@ int WinMain(int argc, char **argv) {
 	LightArray[4] = *new PointLight(500	, 260	,0.0	,1.0	,0.0	,1.0f	,512.0f	);
 	LightArray[5] = *new PointLight(760	, 350	,0.0	,0.0	,1.0	,1.0f	,512.0f	);
 	LightArray[6] = *new PointLight(10		, 10	,1.0	,1.0	,1.0	,1.0f	,512.0f	);
+	LightArray[7] = *new PointLight(640*2+32,480/2,1.0	,1.0	,1.0	,1.0f	,512.0f	);
 	//LightArray[3] = *new PointLight(WINDOW_WIDTH/5*4	, WINDOW_HEIGHT/3*2	,1.0	,1.0	,1.0	,1.0f	,512.0f	);
 	/*LightArray[2] = *new PointLight(WINDOW_WIDTH/4*4	, WINDOW_HEIGHT/4,1.0	,1.0	,1.0	,1.0f	,512.0f	);
 	LightArray[3] = *new PointLight(WINDOW_WIDTH/4	, WINDOW_HEIGHT/4*4,1.0	,1.0	,1.0	,1.0f	,512.0f	);
