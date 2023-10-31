@@ -78,9 +78,8 @@ int lastFrameTime = 0;
 
 /* ---- Object Limits ---- */
 int numberOfLines = 20;
-int numberOfLights = 6;
+int numberOfLights = 10;
 int numberOfBounces = 0;
-int currentRenderStep = 0;
 int numberOfRenderSectors = 1;
 int numberOfRays = numberOfRenderSectors;
 
@@ -88,7 +87,8 @@ int numberOfRays = numberOfRenderSectors;
 Point cameraPosition;
 float cameraRotation = 0.0f;
 float fieldOfView = 180.0f;
-float maxRenderDistance = 1000.0f;
+float maxRenderDistance = 1024.0f;
+float initialRayStepSize = 0.01f;
 
 
 /* ---- Player Variables ---- */
@@ -138,7 +138,9 @@ class Line {
 		Point p1;
 		Point p2;
 		Color color;
-		float roughness;
+		bool emissive = false;
+		float roughness = 1.0f;
+		// Without color
 		Line(float x1, float y1, float x2, float y2) {
 			p1.x = x1;
 			p1.y = y1;
@@ -147,7 +149,6 @@ class Line {
 			color.r = 1.0;
 			color.g = 1.0;
 			color.b = 1.0;
-			roughness = 1.0f;
 		}
 		
 		Line(Point _p1, Point _p2) {
@@ -156,9 +157,9 @@ class Line {
 			color.r = 1.0;
 			color.g = 1.0;
 			color.b = 1.0;
-			roughness = 1.0f;
 		}
 		
+		// With color
 		Line(float x1, float y1, float x2, float y2, int r, int g, int b) {
 			p1.x = x1;
 			p1.y = y1;
@@ -167,14 +168,12 @@ class Line {
 			color.r = r;
 			color.g = g;
 			color.b = b;
-			roughness = 1.0f;
 		}
 		
 		Line(Point _p1, Point _p2, Color _color) {
 			p1 = _p1;
 			p2 = _p2;
 			color = _color;
-			roughness = 1.0f;
 		}
 };
 
@@ -299,6 +298,17 @@ float clamp(float in, float min, float max) {
 		in = min;
 	}
 	
+	return in;
+}
+
+// Clamp an int between min and max
+int intClamp(int in, int min, int max) {
+	if (in < min) {
+		in = min;
+	}
+	if (in > max) {
+		in = max;
+	}
 	return in;
 }
 
@@ -431,30 +441,47 @@ class Ray {
 	public:
 		Point position;
 		float direction;
-		int currentPixel;
-		float RayStepSize = 0.1f;
+		int currentColumn;
+		float RayStepSize;
+		int stepCount = 0;
 		
 		Ray(float x, float y, float _direction) {
 			position.x = x;
 			position.y = y;
 			direction = _direction;
+			RayStepSize = initialRayStepSize;
 		}
 		
 		Ray() {
 			position.x = cameraPosition.x;
 			position.y = cameraPosition.y;
 			direction = cameraRotation;
+			RayStepSize = initialRayStepSize;
+		}
+		
+		void ResetRay() {
+			position.x = cameraPosition.x;
+			position.y = cameraPosition.y;
+			direction = cameraRotation;
+			RayStepSize = initialRayStepSize;
+		}
+		
+		// Because for some reason just defining it isn't enough-?
+		void setInitialRayStepSize(float _RayStepSize) {
+			RayStepSize	= _RayStepSize;
 		}
 		
 		// Used to step through the Ray until a wall is hit
 		int step() {
 			//printf("%f\n",RayStepSize);
-			//RayStepSize = getDistance(position,cameraPosition)/maxRenderDistance*(WINDOW_HEIGHT/2);
-			RayStepSize = 5.0f;
+			RayStepSize = ((float)stepCount/(float)(WINDOW_HEIGHT/2))*1.0f;
+			//printf("%f\n",RayStepSize);
 			Point previousPosition = position;
 			float rad = degreeToRadian(direction);
 			position.x += (RayStepSize*sin(rad));
 			position.y += (RayStepSize*cos(rad));
+			//(getDistance(position,cameraPosition)/maxRenderDistance) * WINDOW_HEIGHT/6;
+			//printf("%f\n",RayStepSize);
 			
 			// Draws those cool light columns
 			// Iterate through all the lights in the scene
@@ -464,10 +491,10 @@ class Ray {
 				if (getDistance(position,currentLightObject.position) <= 5.0f){
 					float distance = getDistance(position,cameraPosition);
 					// Set the Color of that column to the color of the lamp
-					screen[currentPixel].color.r = (currentLightObject.color.r);
-					screen[currentPixel].color.g = (currentLightObject.color.g);
-					screen[currentPixel].color.b = (currentLightObject.color.b);
-					screen[currentPixel].distance = distance;
+					screen[currentColumn].color.r = (currentLightObject.color.r);
+					screen[currentColumn].color.g = (currentLightObject.color.g);
+					screen[currentColumn].color.b = (currentLightObject.color.b);
+					screen[currentColumn].distance = distance;
 					return 1;
 				}
 			}
@@ -486,102 +513,89 @@ class Ray {
 				position = previousPosition;
 				
 				// Get distance to camera
-				screen[currentPixel].distance = getDistance(position, cameraPosition);
+				screen[currentColumn].distance = getDistance(position, cameraPosition);
 				
 				// Light Distance Shading
-				// Check if we hit anything on our way to a lightsource
-				for (int currentLightIndex = 1; currentLightIndex <= numberOfLights; currentLightIndex++) {
-					// Get current Light
-					PointLight currentLightObject = LightArray[currentLightIndex];
-					int lightLineID = checkIfAnyLinesIntersect(position,currentLightObject.position);
-					// If no line obstructs the lightsource, add it's value to the screen
-					if (lightLineID) {
-						screen[currentPixel].color.r += 0;
-						screen[currentPixel].color.g += 0;
-						screen[currentPixel].color.b += 0;
-					} else {
-						// Scale brightness acording to distance
-						if (getDistance(position,currentLightObject.position) <= currentLightObject.distance) {
-							float distanceToLight = getDistance(position,currentLightObject.position);
-							float normalizedLight = (1.0-(distanceToLight/currentLightObject.distance)) * currentLightObject.brightness;
-							normalizedLight = pow(normalizedLight,2);
-							screen[currentPixel].color.r += (currentLightObject.color.r * intersectedLineObject->color.r * normalizedLight);
-							screen[currentPixel].color.g += (currentLightObject.color.g * intersectedLineObject->color.g * normalizedLight);
-							screen[currentPixel].color.b += (currentLightObject.color.b * intersectedLineObject->color.b * normalizedLight);
-						}
-					}
+				if (intersectedLineObject->emissive) {
+					screen[currentColumn].color.r = intersectedLineObject->color.r;
+					screen[currentColumn].color.g = intersectedLineObject->color.g;
+					screen[currentColumn].color.b = intersectedLineObject->color.b;
+				} else {
+					screen[currentColumn].color = updateColorBasedOnLocation(position, intersectedLineObject->color);
 				}
-				
-				// Distance Based Shade	
-				float normalizedShade = 1.0f-(getDistance(cameraPosition,position)/maxRenderDistance);
-				screen[currentPixel].color.r *= pow(normalizedShade,2);
-				screen[currentPixel].color.g *= pow(normalizedShade,2);
-				screen[currentPixel].color.b *= pow(normalizedShade,2);	
 				return 1;
 			} else {
-				// Calculate the Floorlight
-				Color pointColor;
-				pointColor.r = 0.0f;
-				pointColor.g = 0.0f;
-				pointColor.b = 0.0f;
-				// Iterate over every light in the scene
-				for (int currentLightIndex = 1; currentLightIndex <= numberOfLights; currentLightIndex++) {
-					// Get the current Light
-					PointLight currentLight = LightArray[currentLightIndex];
-					// Check if any lines cover the path to the lightsource
-					int lineCoveringLight = checkIfAnyLinesIntersect(position,currentLight.position);
-					// If a line covers up the Lightsource, skip this section
-					if (!lineCoveringLight) {
-						// If no line is found, calculate the relevant Pixel
-						if (getDistance(position,currentLight.position) <= currentLight.distance) {
-							float distanceToLight = getDistance(position,currentLight.position);
-							float normalizedLight = (1.0f-(distanceToLight/currentLight.distance)) * currentLight.brightness;
-							normalizedLight = pow(normalizedLight,2);
-							pointColor.r += (currentLight.color.r * floorColor.r * normalizedLight);
-							pointColor.g += (currentLight.color.g * floorColor.g * normalizedLight);
-							pointColor.b += (currentLight.color.b * floorColor.b * normalizedLight);
-						}
-					}
-				}
-				
-				// Calculate Distance fall-off
-				float normalizedShade = 1.0f-(getDistance(cameraPosition,position)/maxRenderDistance);
-				pointColor.r *= pow(normalizedShade,2);
-				pointColor.g *= pow(normalizedShade,2);
-				pointColor.b *= pow(normalizedShade,2);
-				
-				// Clamp the result
-				pointColor.r = clamp(pointColor.r,0.0f,1.0f);
-				pointColor.g = clamp(pointColor.g,0.0f,1.0f);
-				pointColor.b = clamp(pointColor.b,0.0f,1.0f);
-				// Add it to the FloorLightArray
-				FloorLightArray[currentRenderStep + currentPixel*(WINDOW_HEIGHT/2)] = pointColor;
+				// Insert Floor and ceiling lighting here
+				// Calculate the Floorlight and add it to the FloorLightArray
+				FloorLightArray[stepCount + currentColumn*(WINDOW_HEIGHT/2)] = updateColorBasedOnLocation(position, floorColor);;
+				return 0;
 			}
 			
-			return 0;
+		}
+		
+		// Used to calculate the lighting of the specified position
+		Color updateColorBasedOnLocation(Point position, Color baseColor) {
+			Color resultingColor;
+			resultingColor.r = 0.0f;
+			resultingColor.g = 0.0f;
+			resultingColor.b = 0.0f;
+			// Check if we hit anything on our way to a lightsource
+			for (int currentLightIndex = 1; currentLightIndex <= numberOfLights; currentLightIndex++) {
+				// Get current Light
+				PointLight currentLightObject = LightArray[currentLightIndex];
+				int lineCoveringLight = checkIfAnyLinesIntersect(position,currentLightObject.position);
+				// If no line obstructs the lightsource, add it's value to the screen
+				if (!lineCoveringLight) {
+					// Scale brightness acording to distance
+					if (getDistance(position,currentLightObject.position) <= currentLightObject.distance) {
+						float distanceToLight = getDistance(position,currentLightObject.position);
+						float normalizedLight = (1.0-(distanceToLight/currentLightObject.distance)) * currentLightObject.brightness;
+						normalizedLight = pow(normalizedLight,2);
+						resultingColor.r += (currentLightObject.color.r * baseColor.r * normalizedLight);
+						resultingColor.g += (currentLightObject.color.g * baseColor.g * normalizedLight);
+						resultingColor.b += (currentLightObject.color.b * baseColor.b * normalizedLight);
+					}
+				}
+			}
+			
+			// Distance Based Shade	
+			float normalizedShade = 1.0f-(getDistance(cameraPosition,position)/maxRenderDistance);
+			resultingColor.r *= pow(normalizedShade,2);
+			resultingColor.g *= pow(normalizedShade,2);
+			resultingColor.b *= pow(normalizedShade,2);	
+			
+			// Clamp results from 0.0f to 1.0f
+			resultingColor.r = clamp(resultingColor.r, 0.0f, 1.0f);
+			resultingColor.g = clamp(resultingColor.g, 0.0f, 1.0f); 
+			resultingColor.b = clamp(resultingColor.b, 0.0f, 1.0f);
+			return resultingColor;
 		}
 };
+
 
 // Raytrace Render Column
 void traceColumn(Ray& currentRay) {	
 	// Send out a Ray from the camera
 	currentRay.position = cameraPosition;
 	// This is where the FoV magically appears!
-	currentRay.direction = (cameraRotation + ((fieldOfView/2)*-1)) + (fieldOfView/WINDOW_WIDTH*currentRay.currentPixel);
+	currentRay.direction = (cameraRotation + ((fieldOfView/2)*-1)) + (fieldOfView/WINDOW_WIDTH*currentRay.currentColumn);
+
+	currentRay.setInitialRayStepSize(initialRayStepSize);
 	
-	int maxRenderSteps = WINDOW_HEIGHT/2+1;
-	for (currentRenderStep = 0; currentRenderStep <= maxRenderSteps; currentRenderStep++) {
+	bool finishedLine = false;
+	for (int currentRenderStep = 0; currentRenderStep <= WINDOW_HEIGHT/2+1; currentRenderStep++) {
 		//while(RayArray[1].bounces < numberOfBounces) {
 		Point previousPosition = currentRay.position;
-		bool finishedLine = currentRay.step();
-		
+		currentRay.stepCount = currentRenderStep;
+		finishedLine = currentRay.step();
+
 		// Stop rendering if we hit a wall
 		if (finishedLine) {
 			break;
 		} else {
 			// If we never hit a wall, infinite distance
-			if (currentRenderStep == maxRenderSteps) {
-				screen[currentRay.currentPixel].distance = maxRenderDistance;
+			if (currentRenderStep == WINDOW_HEIGHT/2+1) {
+				screen[currentRay.currentColumn].distance = maxRenderDistance;
 				break;
 			}
 		}
@@ -590,14 +604,14 @@ void traceColumn(Ray& currentRay) {
 
 // Trace the assigned render sector
 int traceRenderSector(Ray& currentRay) {
-	int start = currentRay.currentPixel;
-	int finish = currentRay.currentPixel + (WINDOW_WIDTH/numberOfRenderSectors);
-	while (currentRay.currentPixel < finish) {
-		screen[currentRay.currentPixel].color.r = 0;
-		screen[currentRay.currentPixel].color.g = 0;
-		screen[currentRay.currentPixel].color.b = 0;
+	int start = currentRay.currentColumn;
+	int finish = currentRay.currentColumn + (WINDOW_WIDTH/numberOfRenderSectors);
+	while (currentRay.currentColumn < finish) {
+		screen[currentRay.currentColumn].color.r = 0.0f;
+		screen[currentRay.currentColumn].color.g = 0.0f;
+		screen[currentRay.currentColumn].color.b = 0.0f;
 		traceColumn(currentRay);
-		currentRay.currentPixel++;
+		currentRay.currentColumn++;
 	}
 	return 0;
 }
@@ -621,6 +635,8 @@ void updateScreen() {
 	int texture_pitch;
 	int lastPos;
 	float sliceSize;
+	uint8_t *pixel;
+	// Could probably also be given to multiple threads
 	while(running) {
 		// Start new frame
 		//SDL_SetRenderDrawColor(renderer, 255, 0, 255, 0);
@@ -628,45 +644,45 @@ void updateScreen() {
 		if (frameDone && (lastFrameTime+TICKS_FOR_NEXT_FRAME <= SDL_GetTicks())) {
 			SDL_LockTexture(texture, NULL, &texture_pixels, &texture_pitch);
 			// Render current Column
-			for (int currentColumn = 0; currentColumn < WINDOW_WIDTH ; currentColumn++) {
+			for (int currentColumn = 0; currentColumn < WINDOW_WIDTH; currentColumn++) {
 				ScreenColumn* currentScreenColumn = &screen[currentColumn];
-				Color renderColor = currentScreenColumn->color;
+				Color* renderColor = &currentScreenColumn->color;
 				
-				// Ground shadows first
-				sliceSize = (WINDOW_HEIGHT/6) * (log((currentScreenColumn->distance / maxRenderDistance)));
+				// Calculate Size of column
+				//sliceSize = abs((WINDOW_HEIGHT/6) * (log((currentScreenColumn->distance / maxRenderDistance))));
+				sliceSize = abs((WINDOW_HEIGHT/6) * (1.0f-((currentScreenColumn->distance / maxRenderDistance))));
+				//printf("%d, %f:\n",currentColumn, sliceSize);
 				
-				for (int currentPixel = 0; currentPixel <= WINDOW_HEIGHT; currentPixel++) {
-					uint8_t *pixel = (uint8_t *)texture_pixels + currentPixel * texture_pitch + (WINDOW_WIDTH-currentColumn) * 4;
-					pixel[0] = (uint8_t)(renderColor.r*255);
-					pixel[1] = (uint8_t)(renderColor.g*255);
-					pixel[2] = (uint8_t)(renderColor.b*255);
+				// Render Column
+				for (int currentRow = WINDOW_HEIGHT/2-sliceSize; currentRow < WINDOW_HEIGHT/2+sliceSize; currentRow++) {
+					//printf("\t%d,",currentRow);
+					pixel = (uint8_t *)texture_pixels + intClamp(currentRow, 0, WINDOW_HEIGHT) * texture_pitch + (WINDOW_WIDTH-currentColumn) * 4;
+					pixel[0] = (uint8_t)(renderColor->r*255);
+					pixel[1] = (uint8_t)(renderColor->g*255);
+					pixel[2] = (uint8_t)(renderColor->b*255);
 					pixel[3] = 0xFF;
 				}
 				
+				// Render Floor and Ceiling
 				lastPos = WINDOW_HEIGHT;
-				for (int lightRow = 1; lightRow <= (WINDOW_HEIGHT/2); lightRow++) {
-					float projectedPixel = (WINDOW_HEIGHT/6) * (log(((float)lightRow)/((float)(WINDOW_HEIGHT/2))));
-					Color pointColor = FloorLightArray[lightRow + currentColumn*(WINDOW_HEIGHT/2)];
-					float resultPixel = (WINDOW_HEIGHT/2-(projectedPixel));
+				for (int floorRow = 0; floorRow <= (WINDOW_HEIGHT/2)-sliceSize; floorRow++) {
+					//float projectedPixel = (WINDOW_HEIGHT/6) * (log(((float)floorRow)/((float)(WINDOW_HEIGHT/2))));
+					// 
+					Color* pointColor = &FloorLightArray[floorRow + currentColumn*(WINDOW_HEIGHT/2)];
+					//int resultPixel = (int)(WINDOW_HEIGHT/2-(projectedPixel));
 					
-					if (projectedPixel < sliceSize) {
-						while (lastPos >= resultPixel) {
-							uint8_t *pixel = (uint8_t *)texture_pixels + lastPos * texture_pitch + (WINDOW_WIDTH-currentColumn) * 4;
-							pixel[0] = (uint8_t)(pointColor.r*255);
-							pixel[1] = (uint8_t)(pointColor.g*255);
-							pixel[2] = (uint8_t)(pointColor.b*255);
-							pixel[3] = 0xFF;
-							
-							pixel = (uint8_t *)texture_pixels + (WINDOW_HEIGHT-lastPos) * texture_pitch + (WINDOW_WIDTH-currentColumn) * 4;
-							pixel[0] = (uint8_t)(pointColor.r*255);
-							pixel[1] = (uint8_t)(pointColor.g*255);
-							pixel[2] = (uint8_t)(pointColor.b*255);
-							pixel[3] = 0xFF;
-							lastPos--;
-						}
-					} else {
-						break;
-					}
+					pixel = (uint8_t *)texture_pixels + intClamp(WINDOW_HEIGHT-floorRow, 0, WINDOW_HEIGHT) * texture_pitch + (WINDOW_WIDTH-currentColumn) * 4;
+					//printf("%f, %d, %d\n", sliceSize, floorRow, WINDOW_HEIGHT-floorRow);
+					pixel[0] = (uint8_t)(pointColor->r*255);
+					pixel[1] = (uint8_t)(pointColor->g*255);
+					pixel[2] = (uint8_t)(pointColor->b*255);
+					pixel[3] = 0xFF;
+					
+					pixel = (uint8_t *)texture_pixels + (int)(floorRow) * texture_pitch + (WINDOW_WIDTH-currentColumn) * 4;
+					pixel[0] = (uint8_t)(pointColor->r*255);
+					pixel[1] = (uint8_t)(pointColor->g*255);
+					pixel[2] = (uint8_t)(pointColor->b*255);
+					pixel[3] = 0xFF;
 				}
 			}
 			SDL_UnlockTexture(texture);
@@ -713,16 +729,26 @@ int WinMain(int argc, char **argv) {
 		SDL_WINDOWPOS_UNDEFINED,
 		WINDOW_WIDTH,
 		WINDOW_HEIGHT,
-		SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE// | SDL_WINDOW_FULLSCREEN_DESKTOP
+		SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE// | SDL_WINDOW_FULLSCREEN_DESKTOP
 	);
     CHECK_ERROR(window == NULL, SDL_GetError());
 	
-    renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED ); 
+    renderer = SDL_CreateRenderer(
+		window,
+		-1,
+		SDL_RENDERER_ACCELERATED
+	); 
 	CHECK_ERROR(renderer == NULL, SDL_GetError());
 	
     SDL_SetRenderDrawColor(renderer, 0, 0, 0, 0);
     SDL_RenderClear(renderer);
-	texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA32, SDL_TEXTUREACCESS_STREAMING, WINDOW_WIDTH, WINDOW_HEIGHT);
+	texture = SDL_CreateTexture(
+		renderer,
+		SDL_PIXELFORMAT_RGBA32,
+		SDL_TEXTUREACCESS_STREAMING,
+		WINDOW_WIDTH,
+		WINDOW_HEIGHT
+	);
 			
 	skyLight.r = 0.1f;
 	skyLight.g = 0.3f;
@@ -743,13 +769,14 @@ int WinMain(int argc, char **argv) {
 	cameraRotation = 180.0f;
 	for (int i = 1; i <= numberOfRays; i++) {
 		RayArray[i] = *new Ray();
-		RayArray[i].currentPixel = i-1;
+		RayArray[i].currentColumn = i-1;
 	}
 
 	
 	// Scene is loaded here
 	LineArray[1] = *new Line(0	,0	,640*2,0	,1.0, 0.0, 0.0);
 	LineArray[2] = *new Line(640*2,480,640*2,0	,0.0, 1.0, 0.0);
+	LineArray[2].emissive = true;
 	LineArray[3] = *new Line(0	,480,640*2,480,0.0, 0.0, 1.0);
 	LineArray[4] = *new Line(0 	,480,0	,0	,1.0, 1.0, 1.0);
 	
@@ -791,6 +818,7 @@ int WinMain(int argc, char **argv) {
 	LightArray[3] = *new PointLight(770	, 110	,1.0	,0.0	,0.0	,1.0f	,512.0f	);
 	LightArray[4] = *new PointLight(500	, 260	,0.0	,1.0	,0.0	,1.0f	,512.0f	);
 	LightArray[5] = *new PointLight(760	, 350	,0.0	,0.0	,1.0	,1.0f	,512.0f	);
+	LightArray[6] = *new PointLight(10		, 10	,1.0	,1.0	,1.0	,1.0f	,512.0f	);
 	//LightArray[3] = *new PointLight(WINDOW_WIDTH/5*4	, WINDOW_HEIGHT/3*2	,1.0	,1.0	,1.0	,1.0f	,512.0f	);
 	/*LightArray[2] = *new PointLight(WINDOW_WIDTH/4*4	, WINDOW_HEIGHT/4,1.0	,1.0	,1.0	,1.0f	,512.0f	);
 	LightArray[3] = *new PointLight(WINDOW_WIDTH/4	, WINDOW_HEIGHT/4*4,1.0	,1.0	,1.0	,1.0f	,512.0f	);
@@ -857,10 +885,10 @@ int WinMain(int argc, char **argv) {
 		// Raytrace
 		// Only trace new frames if last frame is done drawing
 		if (!frameDone) {
-			for (int currentSector = 0; currentSector < numberOfRenderSectors; currentSector++) {
+			for (int currentRenderSector = 0; currentRenderSector < numberOfRenderSectors; currentRenderSector++) {
 				//printf("%d,", currentColumn);
-				Ray& currentRay = RayArray[currentSector];
-				currentRay.currentPixel = (WINDOW_WIDTH/numberOfRenderSectors)*currentSector;
+				Ray& currentRay = RayArray[currentRenderSector];
+				currentRay.currentColumn = (WINDOW_WIDTH/numberOfRenderSectors)*currentRenderSector;
 				raytraceThreadPool.emplace_back([&currentRay]() { traceRenderSector(currentRay); });
 				//traceColumn(currentRay);
 			}
