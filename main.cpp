@@ -88,7 +88,7 @@ Point cameraPosition;
 float cameraRotation = 0.0f;
 float fieldOfView = 90.0f;
 float maxRenderDistance = 1024.0f;
-float initialRayStepSize = 0.01f;
+float initialRayStepSize = 1.0f;
 
 
 /* ---- Player Variables ---- */
@@ -475,7 +475,7 @@ class Ray {
 		int step() {
 			//printf("%f\n",RayStepSize);
 			//RayStepSize = pow((float)stepCount/(float)(WINDOW_HEIGHT/2),3)*3;
-			RayStepSize = 1.0f;
+			RayStepSize = 2.0f;//pow((float)stepCount/(float)(WINDOW_HEIGHT/2),3)*3;
 			//printf("%f\n",RayStepSize);
 			Point previousPosition = position;
 			float rad = degreeToRadian(direction);
@@ -654,9 +654,10 @@ void updateScreen() {
 				//sliceSize = abs((WINDOW_HEIGHT/6) * (log((currentScreenColumn->distance / maxRenderDistance))));
 				//sliceSize = abs((WINDOW_HEIGHT/6) * (1.0f-((currentScreenColumn->distance / maxRenderDistance))));
 				//printf("%d, %f:\n",currentColumn, sliceSize);
+				sliceSize = pow(1.0f-((currentScreenColumn->distance / maxRenderDistance)),3) * (WINDOW_HEIGHT/2);
 				
 				// Render Column
-				for (int currentRow = 0; currentRow < WINDOW_HEIGHT/2; currentRow++) {
+				for (int currentRow = WINDOW_HEIGHT/2-sliceSize; currentRow < WINDOW_HEIGHT/2+sliceSize; currentRow++) {
 					//printf("\t%d,",currentRow);
 					pixel = (uint8_t *)texture_pixels + intClamp(currentRow, 0, WINDOW_HEIGHT) * texture_pitch + (WINDOW_WIDTH-currentColumn) * 4;
 					pixel[0] = (uint8_t)(renderColor->r*255);
@@ -666,25 +667,24 @@ void updateScreen() {
 				}
 				
 				// Render Floor and Ceiling
-				
 				for (int floorRow = WINDOW_HEIGHT/2; floorRow >= 0; floorRow--) {
-					//float projectedPixel = (WINDOW_HEIGHT/6) * (log(((float)floorRow)/((float)(WINDOW_HEIGHT/2))));
-					// 
-					Color* pointColor = &FloorLightArray[floorRow + currentColumn*(WINDOW_HEIGHT/2)];
-					//int resultPixel = (int)(WINDOW_HEIGHT/2-(projectedPixel));
-					
-					pixel = (uint8_t *)texture_pixels + (WINDOW_HEIGHT-floorRow) * texture_pitch + (WINDOW_WIDTH-currentColumn) * 4;
-					//printf("%f, %d, %d\n", sliceSize, floorRow, WINDOW_HEIGHT-floorRow);
-					pixel[0] = (uint8_t)(pointColor->r*255);
-					pixel[1] = (uint8_t)(pointColor->g*255);
-					pixel[2] = (uint8_t)(pointColor->b*255);
-					pixel[3] = 0xFF;
-					
-					/*pixel = (uint8_t *)texture_pixels + (int)(floorRow) * texture_pitch + (WINDOW_WIDTH-currentColumn) * 4;
-					pixel[0] = (uint8_t)(pointColor->r*255);
-					pixel[1] = (uint8_t)(pointColor->g*255);
-					pixel[2] = (uint8_t)(pointColor->b*255);
-					pixel[3] = 0xFF;*/
+					if (floorRow <= WINDOW_HEIGHT/2-sliceSize) {
+						Color* pointColor = &FloorLightArray[floorRow + currentColumn*(WINDOW_HEIGHT/2)];
+						//int resultPixel = (int)(WINDOW_HEIGHT/2-(projectedPixel));
+						
+						pixel = (uint8_t *)texture_pixels + (WINDOW_HEIGHT-floorRow) * texture_pitch + (WINDOW_WIDTH-currentColumn) * 4;
+						//printf("%f, %d, %d\n", sliceSize, floorRow, WINDOW_HEIGHT-floorRow);
+						pixel[0] = (uint8_t)(pointColor->r*255);
+						pixel[1] = (uint8_t)(pointColor->g*255);
+						pixel[2] = (uint8_t)(pointColor->b*255);
+						pixel[3] = 0xFF;
+						
+						pixel = (uint8_t *)texture_pixels + (int)(floorRow) * texture_pitch + (WINDOW_WIDTH-currentColumn) * 4;
+						pixel[0] = (uint8_t)(pointColor->r*255);
+						pixel[1] = (uint8_t)(pointColor->g*255);
+						pixel[2] = (uint8_t)(pointColor->b*255);
+						pixel[3] = 0xFF;
+					}
 				}
 			}
 			SDL_UnlockTexture(texture);
