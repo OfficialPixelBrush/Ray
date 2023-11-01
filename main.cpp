@@ -80,7 +80,7 @@ int lastFrameTime = 0;
 int numberOfLines = 20;
 int numberOfLights = 10;
 int numberOfBounces = 0;
-int numberOfRenderSectors = 1;
+int numberOfRenderSectors = 4;
 int numberOfRays = numberOfRenderSectors;
 
 /* ---- Camera Variables ---- */
@@ -491,7 +491,7 @@ class Ray {
 		int step() {
 			//printf("%f\n",RayStepSize);
 			//RayStepSize = pow((float)stepCount/(float)(WINDOW_HEIGHT/2),3)*3;
-			RayStepSize = ((float)stepCount/(float)(WINDOW_HEIGHT/2))*horizonDistance;
+			RayStepSize = pow((float)stepCount/(float)(WINDOW_HEIGHT/2),2) * horizonDistance;
 			//printf("%f\n",RayStepSize);
 			Point previousPosition = position;
 			float rad = degreeToRadian(direction);
@@ -593,13 +593,10 @@ class Ray {
 // Raytrace Render Column
 void traceColumn(Ray& currentRay) {
 	// Send ray out from viewport
-	float nearClipPlane = 1.0f;
+	//float nearClipPlaneDistance = 1.0f;
 	Point nearClipPlanePosition = cameraPosition;
-	// TODO: Make this work
-	float nearClipPlaneCenterRotation = (cameraRotation + ((fieldOfView/2)*-1)) + (fieldOfView/2);
-	printf("%f\n",nearClipPlaneCenterRotation);
-	nearClipPlanePosition.x += (nearClipPlane*sin(nearClipPlaneCenterRotation));
-	nearClipPlanePosition.y += (nearClipPlane*cos(nearClipPlaneCenterRotation));
+	// This *kinda* works??
+	//nearClipPlanePosition.x += (((WINDOW_WIDTH/2)-currentRay.currentColumn)/10.0f);
 	
 	// Send out a Ray from the camera
 	currentRay.position = nearClipPlanePosition;
@@ -675,6 +672,8 @@ void updateScreen() {
 				
 				// Calculate Size of column
 				sliceSize = currentScreenColumn->amountOfRaySteps;
+				//sliceSize = (log(((float)currentScreenColumn->amountOfRaySteps) / ((float)(WINDOW_HEIGHT/2)))*((float)WINDOW_HEIGHT/2));
+				//printf("%d\n", altSliceSize);
 				
 				// Render Column
 				for (int currentRow = sliceSize; currentRow <= WINDOW_HEIGHT-sliceSize; currentRow++) {
