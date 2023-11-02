@@ -873,7 +873,6 @@ class Ray {
 		}
 };
 
-
 // Raytrace Render Column
 void traceColumn(Ray& currentRay) {
 	// Send ray out from viewport
@@ -1021,13 +1020,17 @@ void updateScreen() {
 					}
 				}
 			}
+			// Print fps text 
+			string dateTimeString = "Build of " + (string)__FILE__ + ": " + (string)__TIMESTAMP__;
+			renderText(pixel,renderFontWidth,renderFontHeight, white, black, dateTimeString);
+			
 			// Print ms text
 			string millisecondString = to_string(newFrameTime-lastFrameTime) + "ms";
-			renderText(pixel,renderFontWidth,renderFontHeight, white, black, millisecondString);
+			renderText(pixel,renderFontWidth,renderFontHeight*2, white, black, millisecondString);
 			
 			// Print fps text 
 			string fpsString = to_string(1000/(newFrameTime-lastFrameTime)) + "fps";
-			renderText(pixel,renderFontWidth,renderFontHeight*2, white, black, fpsString);
+			renderText(pixel,renderFontWidth,renderFontHeight*3, white, black, fpsString);
 			
 			// Finish frame
 			SDL_UnlockTexture(texture);
@@ -1117,7 +1120,7 @@ int WinMain(int argc, char **argv) {
 	
 	// Precalc of Steps
 	for (int initStepCount = 0; initStepCount < WINDOW_HEIGHT_HALF; initStepCount++) {
-		StepSizeDistanceArray[initStepCount] = (int)(pow((float)initStepCount/(float)(WINDOW_HEIGHT_HALF),2) * horizonDistance);
+		StepSizeDistanceArray[initStepCount] = (int)(((float)initStepCount/(float)(WINDOW_HEIGHT_HALF)) * horizonDistance);
 	}
 	
 	// Camera Origin
