@@ -1021,7 +1021,7 @@ void updateScreen() {
 				}
 			}
 			// Print fps text 
-			string dateTimeString = "Build of " + (string)__FILE__ + ": " + (string)__TIMESTAMP__;
+			string dateTimeString = "Built on " + (string)__TIMESTAMP__;
 			renderText(pixel,renderFontWidth,renderFontHeight, white, black, dateTimeString);
 			
 			// Print ms text
@@ -1288,6 +1288,7 @@ int WinMain(int argc, char **argv) {
 	free(CeilingLightArray);
 	free(StepSizeDistanceArray);
 	
+	SDL_DestroyTexture(texture);
     SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);
     SDL_Quit();
