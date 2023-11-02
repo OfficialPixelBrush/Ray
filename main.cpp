@@ -352,7 +352,7 @@ int lastFrameTime = 0;
 int numberOfLines = 20;
 int numberOfLights = 10;
 int numberOfBounces = 0;
-int numberOfRenderSectors = 5;
+int numberOfRenderSectors = 32;
 int numberOfRays = numberOfRenderSectors;
 
 /* ---- Camera Variables ---- */
@@ -360,7 +360,7 @@ Point cameraPosition;
 float cameraRotation = 0.0f;
 float fieldOfView = 180.0f;
 float horizonDistance = 16.0f;
-float initialRayStepSize = 0.001f;
+float initialRayStepSize = 0.1f;
 
 
 /* ---- Player Variables ---- */
@@ -378,9 +378,14 @@ Color floorColor;
 /* --- Default Color ---- */
 Color white;
 Color black;
+
 Color red;
 Color green;
 Color blue;
+
+Color yellow;
+Color magenta;
+Color cyan;
 
 /* ---- CLASSES ---- */
 
@@ -1024,13 +1029,21 @@ void updateScreen() {
 			string dateTimeString = "Built on " + (string)__TIMESTAMP__;
 			renderText(pixel,renderFontWidth,renderFontHeight, white, black, dateTimeString);
 			
-			// Print ms text
-			string millisecondString = to_string(newFrameTime-lastFrameTime) + "ms";
-			renderText(pixel,renderFontWidth,renderFontHeight*2, white, black, millisecondString);
+			int msCalc = newFrameTime-lastFrameTime;
 			
 			// Print fps text 
-			string fpsString = to_string(1000/(newFrameTime-lastFrameTime)) + "fps";
-			renderText(pixel,renderFontWidth,renderFontHeight*3, white, black, fpsString);
+			string fpsString = to_string(1000/(msCalc)) + "/60fps";
+			renderText(pixel,renderFontWidth,renderFontHeight*2, white, black, fpsString);
+			
+			// Print ms text
+			string millisecondString = to_string(msCalc) + "/16ms";
+			if (msCalc <= 16) {
+				renderText(pixel,renderFontWidth,renderFontHeight*3, green, black, millisecondString);
+			} else if ((msCalc > 16) && (msCalc <= 33)) {
+				renderText(pixel,renderFontWidth,renderFontHeight*3, yellow, black, millisecondString);
+			} else {
+				renderText(pixel,renderFontWidth,renderFontHeight*3, red, black, millisecondString);
+			}
 			
 			// Finish frame
 			SDL_UnlockTexture(texture);
@@ -1100,6 +1113,7 @@ int WinMain(int argc, char **argv) {
 	black.r = 0.0f;
 	black.g = 0.0f;
 	black.b = 0.0f;
+	
 	red.r = 1.0f;
 	red.g = 0.0f;
 	red.b = 0.0f;
@@ -1109,6 +1123,16 @@ int WinMain(int argc, char **argv) {
 	blue.r = 0.0f;
 	blue.g = 0.0f;
 	blue.b = 1.0f;
+	
+	yellow.r = 1.0f;
+	yellow.g = 1.0f;
+	yellow.b = 0.0f;
+	magenta.r = 1.0f;
+	magenta.g = 0.0f;
+	magenta.b = 1.0f;
+	cyan.r = 0.0f;
+	cyan.g = 1.0f;
+	cyan.b = 1.0f;
 	
 	// Array Init
 	RayArray = (struct Ray *)calloc(numberOfRays+1, sizeof(struct Ray));
