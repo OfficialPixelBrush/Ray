@@ -352,7 +352,7 @@ int lastFrameTime = 0;
 int numberOfLines = 20;
 int numberOfLights = 10;
 int numberOfBounces = 0;
-int numberOfRenderSectors = 4;
+int numberOfRenderSectors = 5;
 int numberOfRays = numberOfRenderSectors;
 
 /* ---- Camera Variables ---- */
@@ -360,7 +360,7 @@ Point cameraPosition;
 float cameraRotation = 0.0f;
 float fieldOfView = 180.0f;
 float horizonDistance = 16.0f;
-float initialRayStepSize = 0.01f;
+float initialRayStepSize = 0.001f;
 
 
 /* ---- Player Variables ---- */
@@ -984,6 +984,8 @@ void updateScreen() {
 	int sliceSize;
 	uint8_t *pixel;
 	int newFrameTime;
+	Color renderColor;
+	Color pointColor;
 	// Could probably also be given to multiple threads
 	while(running) {
 		// Start new frame
@@ -996,74 +998,44 @@ void updateScreen() {
 			// TODO: For some reason there's this stray pixel on the side?? Pls fix!
 			for (int currentColumn = 1; currentColumn < WINDOW_WIDTH; currentColumn++) {
 				ScreenColumn* currentScreenColumn = &screen[currentColumn];
-				Color* renderColor = &currentScreenColumn->color;
+				renderColor = currentScreenColumn->color;
 				
 				// Calculate Size of column
 				sliceSize = currentScreenColumn->amountOfRaySteps;
 				
 				// Render Column
-				for (int currentRow = sliceSize; currentRow <= WINDOW_HEIGHT-sliceSize; currentRow++) {
-					// Render Wall
-					pixel = (uint8_t *)texture_pixels + currentRow * texture_pitch + (WINDOW_WIDTH-currentColumn) * 4;
-					pixel[0] = (uint8_t)(renderColor->r*255);
-					pixel[1] = (uint8_t)(renderColor->g*255);
-					pixel[2] = (uint8_t)(renderColor->b*255);
-					pixel[3] = 0xFF;
+				for (int currentRow = 0; currentRow <= WINDOW_HEIGHT; currentRow++) {
+					if (currentRow < sliceSize) {
+						// Draw Ceiling
+						pointColor = FloorLightArray[currentRow + currentColumn*(WINDOW_HEIGHT_HALF)];
+						renderPixel(pixel, WINDOW_WIDTH-currentColumn, currentRow, pointColor);
+					} else {
+						// Render Wall
+						if (currentRow <= WINDOW_HEIGHT-sliceSize) {
+							renderPixel(pixel, WINDOW_WIDTH-currentColumn, currentRow, renderColor);
+						} else {
+							// Render Floor
+							pointColor = FloorLightArray[(WINDOW_HEIGHT-currentRow) + currentColumn*(WINDOW_HEIGHT_HALF)];
+							renderPixel(pixel, WINDOW_WIDTH-currentColumn, currentRow, pointColor);
+						}
+					}
 				}
-				
-				// Render Floor and Ceiling
-				for (int floorRow = 0; floorRow < sliceSize; floorRow++) {
-					Color* pointColor = &FloorLightArray[floorRow + currentColumn*(WINDOW_HEIGHT_HALF)];
-					
-					pixel = (uint8_t *)texture_pixels + (WINDOW_HEIGHT-floorRow) * texture_pitch + (WINDOW_WIDTH-currentColumn) * 4;
-					
-					// Render Floor
-					pixel[0] = (uint8_t)(pointColor->r*255);
-					pixel[1] = (uint8_t)(pointColor->g*255);
-					pixel[2] = (uint8_t)(pointColor->b*255);
-					pixel[3] = 0xFF;
-				}
-				
-				for (int ceilingRow = 0; ceilingRow < sliceSize; ceilingRow++) {
-					Color* pointColor = &FloorLightArray[ceilingRow + currentColumn*(WINDOW_HEIGHT_HALF)];
-					
-					pixel = (uint8_t *)texture_pixels + (WINDOW_HEIGHT-ceilingRow) * texture_pitch + (WINDOW_WIDTH-currentColumn) * 4;
-					// Render Ceiling
-					pixel = (uint8_t *)texture_pixels + ceilingRow * texture_pitch + (WINDOW_WIDTH-currentColumn) * 4;
-					pixel[0] = (uint8_t)(pointColor->r*255);
-					pixel[1] = (uint8_t)(pointColor->g*255);
-					pixel[2] = (uint8_t)(pointColor->b*255);
-					pixel[3] = 0xFF;
 			}
+			// Print ms text
 			string millisecondString = to_string(newFrameTime-lastFrameTime) + "ms";
 			renderText(pixel,renderFontWidth,renderFontHeight, white, black, millisecondString);
-			//renderCharacter(pixel,0,0,white,'A');
+			
+			// Print fps text 
+			string fpsString = to_string(1000/(newFrameTime-lastFrameTime)) + "fps";
+			renderText(pixel,renderFontWidth,renderFontHeight*2, white, black, fpsString);
+			
+			// Finish frame
 			SDL_UnlockTexture(texture);
 			SDL_RenderCopy(renderer, texture, NULL, NULL);
-			
-			// Weirdly bent for some reason,
-				}
-			// but I guess that's just down to how I shoot my rays
-			/*
-			for (int currentColumn = 0; currentColumn < WINDOW_WIDTH ; currentColumn++) {
-				sliceSize = (WINDOW_HEIGHT/6) * (log((screen[currentColumn].distance / horizonDistance)));
-				Color renderColor = screen[currentColumn].color;
-				loadColor(renderColor);
-				SDL_RenderDrawLine(
-					renderer,
-					WINDOW_WIDTH-currentColumn,
-					WINDOW_HEIGHT_HALF-sliceSize,
-					WINDOW_WIDTH-currentColumn,
-					WINDOW_HEIGHT_HALF+sliceSize
-				);
-			}
-			*/
 			SDL_RenderPresent(renderer);
-			//DrawFPS();
+			
+			// Prep next frame
 			lastFrameTime = SDL_GetTicks();
-			//SDL_RenderPresent(renderer);
-			//clearScreenBuffer();
-			//SDL_RenderPresent(renderer);
 			frameDone = false;
 		} else {
 			SDL_Delay(1);
@@ -1094,6 +1066,10 @@ int WinMain(int argc, char **argv) {
 		SDL_RENDERER_ACCELERATED
 	); 
 	CHECK_ERROR(renderer == NULL, SDL_GetError());
+	
+	// Set icon
+	//SDL_Surface* icon = IMG_Load("icon.png");
+	//SDL_SetWindowIcon(window, icon);
 	
 	// Clearing of Screen and creating of Texture
     SDL_SetRenderDrawColor(renderer, 0, 0, 0, 0);
