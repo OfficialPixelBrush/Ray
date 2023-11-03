@@ -17,10 +17,10 @@ using namespace std;
         } \
     } while(0)
 
-#define WINDOW_WIDTH 640
-#define WINDOW_WIDTH_HALF WINDOW_WIDTH/2
-#define WINDOW_HEIGHT 480
-#define WINDOW_HEIGHT_HALF WINDOW_HEIGHT/2
+int WINDOW_WIDTH 		= 1280;
+int WINDOW_HEIGHT 		= 720;
+int WINDOW_WIDTH_HALF 	= WINDOW_WIDTH/2;
+int WINDOW_HEIGHT_HALF 	= WINDOW_HEIGHT/2;
 #define PI 3.1415926535897932384626433832795028841971693993751058209749445923078164062
 #define TICKS_FOR_NEXT_FRAME (1000 / 60)
 
@@ -339,7 +339,7 @@ SDL_Texture *texture;
 void *texture_pixels;
 int texture_pitch;
 
-ScreenColumn screen[WINDOW_WIDTH];
+ScreenColumn *ScreenColumnArray;
 
 // Camera Variables
 
@@ -352,7 +352,7 @@ int lastFrameTime = 0;
 int numberOfLines = 20;
 int numberOfLights = 10;
 int numberOfBounces = 0;
-int numberOfRenderSectors = 32;
+int numberOfRenderSectors = 16;
 int numberOfRays = numberOfRenderSectors;
 
 /* ---- Camera Variables ---- */
@@ -365,6 +365,7 @@ float initialRayStepSize = 0.1f;
 
 /* ---- Player Variables ---- */
 float maxSpeed = 6.0f;
+float cameraHeight = 0.0f;
 float cameraSpeedHorziontal = 0.0f;
 float cameraSpeedVertical = 0.0f;
 float cameraSpeedRotational = 0.0f;
@@ -636,6 +637,16 @@ int processControls() {
 		cameraSpeedVertical /= 2.0f;
 		cameraSpeedRotational /= 2.0f;
 		
+		// Up
+        if (keys[SDL_SCANCODE_SPACE]) {
+			cameraHeight += 1.0f;
+		}
+		
+		// Down
+        if (keys[SDL_SCANCODE_LSHIFT]) {
+			cameraHeight -= 1.0f;
+		}
+		
 		// Forward
         if (keys[SDL_SCANCODE_W]) {
 			cameraSpeedHorziontal += 1.0f*sin(degreeToRadian(cameraRotation));
@@ -780,7 +791,7 @@ class Ray {
 		int step() {
 			//printf("%f\n",RayStepSize);
 			//RayStepSize = pow((float)stepCount/(float)(WINDOW_HEIGHT_HALF),3)*3;
-			RayStepSize = StepSizeDistanceArray[stepCount];//pow((float)stepCount/(float)(WINDOW_HEIGHT_HALF),2) * horizonDistance;
+			RayStepSize = StepSizeDistanceArray[stepCount + WINDOW_HEIGHT_HALF*currentColumn];//pow((float)stepCount/(float)(WINDOW_HEIGHT_HALF),2) * horizonDistance;
 			//printf("%f\n",RayStepSize);
 			Point previousPosition = position;
 			float rad = degreeToRadian(direction);
@@ -797,10 +808,10 @@ class Ray {
 				if (getDistance(position,currentLightObject.position) <= 5.0f){
 					float distance = getDistance(position,cameraPosition);
 					// Set the Color of that column to the color of the lamp
-					screen[currentColumn].color.r = (currentLightObject.color.r);
-					screen[currentColumn].color.g = (currentLightObject.color.g);
-					screen[currentColumn].color.b = (currentLightObject.color.b);
-					screen[currentColumn].amountOfRaySteps = stepCount;
+					ScreenColumnArray[currentColumn].color.r = (currentLightObject.color.r);
+					ScreenColumnArray[currentColumn].color.g = (currentLightObject.color.g);
+					ScreenColumnArray[currentColumn].color.b = (currentLightObject.color.b);
+					ScreenColumnArray[currentColumn].amountOfRaySteps = stepCount;
 					return 1;
 				}
 			}
@@ -820,15 +831,15 @@ class Ray {
 				position = previousPosition;
 				
 				// Get distance to camera
-				screen[currentColumn].amountOfRaySteps = stepCount;//getDistance(position, cameraPosition);
+				ScreenColumnArray[currentColumn].amountOfRaySteps = stepCount;//getDistance(position, cameraPosition);
 				
 				// Light Distance Shading
 				if (intersectedLineObject->emissive) {
-					screen[currentColumn].color.r = intersectedLineObject->color.r;
-					screen[currentColumn].color.g = intersectedLineObject->color.g;
-					screen[currentColumn].color.b = intersectedLineObject->color.b;
+					ScreenColumnArray[currentColumn].color.r = intersectedLineObject->color.r;
+					ScreenColumnArray[currentColumn].color.g = intersectedLineObject->color.g;
+					ScreenColumnArray[currentColumn].color.b = intersectedLineObject->color.b;
 				} else {
-					screen[currentColumn].color = updateColorBasedOnLocation(position, intersectedLineObject->color);
+					ScreenColumnArray[currentColumn].color = updateColorBasedOnLocation(position, intersectedLineObject->color);
 				}
 				return 1;
 			} else {
@@ -896,9 +907,9 @@ void traceColumn(Ray& currentRay) {
 	nearClipPlanePosition.y += nearClipPlaneHypotenuse*sin(degreeToRadian(cameraRotation))*-1;
 	
 	// Send out a Ray from the camera
-	currentRay.position = nearClipPlanePosition;
+	currentRay.position = cameraPosition;
 	// This is where the FoV magically appears!
-	currentRay.direction = (cameraRotation + ((fieldOfView/2)*-1)) + (fieldOfView/WINDOW_WIDTH*currentRay.currentColumn);
+	currentRay.direction = cameraRotation+(((((float)currentRay.currentColumn)/((float)WINDOW_WIDTH))-0.5f)*fieldOfView); // (cameraRotation + ((fieldOfView/2)*-1)) + (fieldOfView/WINDOW_WIDTH*currentRay.currentColumn);
 
 	currentRay.setInitialRayStepSize(initialRayStepSize);
 	
@@ -915,7 +926,7 @@ void traceColumn(Ray& currentRay) {
 		} else {
 			// If we never hit a wall, infinite distance
 			if (currentRenderStep == WINDOW_HEIGHT_HALF+1) {
-				screen[currentRay.currentColumn].amountOfRaySteps = WINDOW_HEIGHT_HALF;// horizonDistance;
+				ScreenColumnArray[currentRay.currentColumn].amountOfRaySteps = WINDOW_HEIGHT_HALF;// horizonDistance;
 				break;
 			}
 		}
@@ -927,9 +938,9 @@ int traceRenderSector(Ray& currentRay) {
 	int start = currentRay.currentColumn;
 	int finish = currentRay.currentColumn + (WINDOW_WIDTH/numberOfRenderSectors);
 	while (currentRay.currentColumn < finish) {
-		screen[currentRay.currentColumn].color.r = 0.0f;
-		screen[currentRay.currentColumn].color.g = 0.0f;
-		screen[currentRay.currentColumn].color.b = 0.0f;
+		ScreenColumnArray[currentRay.currentColumn].color.r = 0.0f;
+		ScreenColumnArray[currentRay.currentColumn].color.g = 0.0f;
+		ScreenColumnArray[currentRay.currentColumn].color.b = 0.0f;
 		traceColumn(currentRay);
 		currentRay.currentColumn++;
 	}
@@ -1001,7 +1012,7 @@ void updateScreen() {
 			// Render current Column
 			// TODO: For some reason there's this stray pixel on the side?? Pls fix!
 			for (int currentColumn = 1; currentColumn < WINDOW_WIDTH; currentColumn++) {
-				ScreenColumn* currentScreenColumn = &screen[currentColumn];
+				ScreenColumn* currentScreenColumn = &ScreenColumnArray[currentColumn];
 				renderColor = currentScreenColumn->color;
 				
 				// Calculate Size of column
@@ -1059,6 +1070,23 @@ void updateScreen() {
 	}
 }
 
+// Used to precalculate the distance between ray steps
+void preCalculateStepArray() {
+	for (int initStepColumn = 0 ; initStepColumn < WINDOW_WIDTH; initStepColumn++) {
+		// Keep step location consistent.
+		for (int initStepCount = 0; initStepCount < WINDOW_HEIGHT_HALF; initStepCount++) {		
+			// Goes from 0.0f - 1.0f, aka closest to furthest pixel
+			float stepCountScale = ((float)initStepCount/(float)(WINDOW_HEIGHT_HALF));
+			// Far clip plane
+			float farClipPlaneDistance = pow(stepCountScale,2) * horizonDistance;
+			float farClipPlaneWidth = fieldOfView/2;
+			float centeredRay = (((float)initStepColumn/(float)WINDOW_WIDTH)-0.5f) * farClipPlaneWidth;
+			float farClipPlaneHypotenuse = sqrt(pow(farClipPlaneDistance,2) + pow(centeredRay,2));	
+			StepSizeDistanceArray[initStepCount + initStepColumn*WINDOW_HEIGHT_HALF] = farClipPlaneHypotenuse;
+		}
+	}
+}
+
 /* --- MAIN ---- */
 // Ye olden Main function
 int WinMain(int argc, char **argv) {
@@ -1103,9 +1131,9 @@ int WinMain(int argc, char **argv) {
 	skyLight.g = 0.3f;
 	skyLight.b = 0.5f;
 	
-	floorColor.r = 1.0f;
-	floorColor.g = 1.0f;
-	floorColor.b = 1.0f;
+	floorColor.r = 0.5f;
+	floorColor.g = 0.5f;
+	floorColor.b = 0.5f;
 	
 	white.r = 1.0f;
 	white.g = 1.0f;
@@ -1135,17 +1163,16 @@ int WinMain(int argc, char **argv) {
 	cyan.b = 1.0f;
 	
 	// Array Init
+	ScreenColumnArray = (struct ScreenColumn *)calloc(WINDOW_WIDTH, sizeof(struct ScreenColumn));
 	RayArray = (struct Ray *)calloc(numberOfRays+1, sizeof(struct Ray));
 	LineArray = (struct Line *)calloc(numberOfLines+1, sizeof(struct Line));
 	LightArray = (struct PointLight *)calloc(numberOfLights+1, sizeof(struct PointLight));
 	FloorLightArray = (struct Color *)calloc(WINDOW_WIDTH*(WINDOW_HEIGHT_HALF)+1, sizeof(struct Color));
 	CeilingLightArray = (struct Color *)calloc(WINDOW_WIDTH*(WINDOW_HEIGHT_HALF)+1, sizeof(struct Color));
-	StepSizeDistanceArray = (float *)calloc(WINDOW_HEIGHT_HALF, sizeof(float));
+	StepSizeDistanceArray = (float *)calloc(WINDOW_HEIGHT_HALF*WINDOW_WIDTH, sizeof(float));
 	
 	// Precalc of Steps
-	for (int initStepCount = 0; initStepCount < WINDOW_HEIGHT_HALF; initStepCount++) {
-		StepSizeDistanceArray[initStepCount] = (int)(((float)initStepCount/(float)(WINDOW_HEIGHT_HALF)) * horizonDistance);
-	}
+	preCalculateStepArray();
 	
 	// Camera Origin
 	cameraPosition.x = 640/2;
@@ -1298,6 +1325,15 @@ int WinMain(int argc, char **argv) {
 			if (event.type == SDL_QUIT) 
 			{ 
 				running = false;
+			}
+			if (event.type == SDL_WINDOWEVENT) {
+				switch(event.window.event) {
+					case SDL_WINDOWEVENT_RESIZED:
+						SDL_Log("Window %d resized to %dx%d",
+						event.window.windowID, event.window.data1,
+						event.window.data2);
+						break;
+				}
 			}
 		}
 		
