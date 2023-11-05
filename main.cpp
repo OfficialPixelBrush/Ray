@@ -17,8 +17,8 @@ using namespace std;
         } \
     } while(0)
 
-int WINDOW_WIDTH 		= 1280;
-int WINDOW_HEIGHT 		= 720;
+int WINDOW_WIDTH 		= 640;
+int WINDOW_HEIGHT 		= 480;
 int WINDOW_WIDTH_HALF 	= WINDOW_WIDTH/2;
 int WINDOW_HEIGHT_HALF 	= WINDOW_HEIGHT/2;
 #define PI 3.1415926535897932384626433832795028841971693993751058209749445923078164062
@@ -637,6 +637,7 @@ int processControls() {
 		cameraSpeedVertical /= 2.0f;
 		cameraSpeedRotational /= 2.0f;
 		
+		/*
 		// Up
         if (keys[SDL_SCANCODE_SPACE]) {
 			cameraHeight += 1.0f;
@@ -646,6 +647,7 @@ int processControls() {
         if (keys[SDL_SCANCODE_LSHIFT]) {
 			cameraHeight -= 1.0f;
 		}
+		*/
 		
 		// Forward
         if (keys[SDL_SCANCODE_W]) {
@@ -907,7 +909,7 @@ void traceColumn(Ray& currentRay) {
 	nearClipPlanePosition.y += nearClipPlaneHypotenuse*sin(degreeToRadian(cameraRotation))*-1;
 	
 	// Send out a Ray from the camera
-	currentRay.position = cameraPosition;
+	currentRay.position = nearClipPlanePosition;
 	// This is where the FoV magically appears!
 	currentRay.direction = cameraRotation+(((((float)currentRay.currentColumn)/((float)WINDOW_WIDTH))-0.5f)*fieldOfView); // (cameraRotation + ((fieldOfView/2)*-1)) + (fieldOfView/WINDOW_WIDTH*currentRay.currentColumn);
 
@@ -961,6 +963,8 @@ int loadColor(const Color& color) {
 }
 
 void renderPixel(uint8_t *pixel, int x, int y, Color &color) {
+	x = x % WINDOW_WIDTH;
+	y = y % WINDOW_HEIGHT;
 	pixel = (uint8_t *)texture_pixels + y * texture_pitch + x * 4;
 	pixel[0] = (uint8_t)(color.r*255);
 	pixel[1] = (uint8_t)(color.g*255);
@@ -1073,6 +1077,13 @@ void updateScreen() {
 // Used to precalculate the distance between ray steps
 void preCalculateStepArray() {
 	for (int initStepColumn = 0 ; initStepColumn < WINDOW_WIDTH; initStepColumn++) {
+		for (int initStepCount = 0; initStepCount < WINDOW_HEIGHT_HALF; initStepCount++) {		
+			StepSizeDistanceArray[initStepCount + initStepColumn*WINDOW_HEIGHT_HALF] = 
+				(int)(((float)initStepCount/(float)(WINDOW_HEIGHT_HALF)) * horizonDistance);
+		}
+	}
+	/*
+	for (int initStepColumn = 0 ; initStepColumn < WINDOW_WIDTH; initStepColumn++) {
 		// Keep step location consistent.
 		for (int initStepCount = 0; initStepCount < WINDOW_HEIGHT_HALF; initStepCount++) {		
 			// Goes from 0.0f - 1.0f, aka closest to furthest pixel
@@ -1085,6 +1096,7 @@ void preCalculateStepArray() {
 			StepSizeDistanceArray[initStepCount + initStepColumn*WINDOW_HEIGHT_HALF] = farClipPlaneHypotenuse;
 		}
 	}
+	*/
 }
 
 /* --- MAIN ---- */
