@@ -412,6 +412,7 @@ class PointLight {
 		Color color;
 		float brightness;
 		float distance;
+		bool dynamic = false;
 		
 	PointLight(Point _p, Color _color, float _brightness, float _distance) {
 		position = _p;
@@ -769,17 +770,20 @@ Color updateColorBasedOnLocation(Point position, Color baseColor) {
 	for (int currentLightIndex = 1; currentLightIndex <= numberOfLights; currentLightIndex++) {
 		// Get current Light
 		PointLight currentLightObject = LightArray[currentLightIndex];
-		int lineCoveringLight = checkIfAnyLinesIntersect(position,currentLightObject.position);
-		// If no line obstructs the lightsource, add it's value to the screen
-		if (!lineCoveringLight) {
-			// Scale brightness acording to distance
-			float distanceToLight = getDistance(position,currentLightObject.position);
-			if (distanceToLight <= currentLightObject.distance) {
-				float normalizedLight = (1.0-(distanceToLight/currentLightObject.distance)) * currentLightObject.brightness;
-				normalizedLight = normalizedLight*normalizedLight;
-				resultingColor.r += (currentLightObject.color.r * baseColor.r * normalizedLight);
-				resultingColor.g += (currentLightObject.color.g * baseColor.g * normalizedLight);
-				resultingColor.b += (currentLightObject.color.b * baseColor.b * normalizedLight);
+		// TODO: Currently this disables all dynamic lights!!!!
+		if (!currentLightObject.dynamic) {
+			int lineCoveringLight = checkIfAnyLinesIntersect(position,currentLightObject.position);
+			// If no line obstructs the lightsource, add it's value to the screen
+			if (!lineCoveringLight) {
+				// Scale brightness acording to distance
+				float distanceToLight = getDistance(position,currentLightObject.position);
+				if (distanceToLight <= currentLightObject.distance) {
+					float normalizedLight = (1.0-(distanceToLight/currentLightObject.distance)) * currentLightObject.brightness;
+					normalizedLight = normalizedLight*normalizedLight;
+					resultingColor.r += (currentLightObject.color.r * baseColor.r * normalizedLight);
+					resultingColor.g += (currentLightObject.color.g * baseColor.g * normalizedLight);
+					resultingColor.b += (currentLightObject.color.b * baseColor.b * normalizedLight);
+				}
 			}
 		}
 	}
@@ -893,8 +897,10 @@ class Ray {
 				// Maybe bake the lighting, except "dynamic" lights-?
 				// Insert Floor and ceiling lighting here
 				// Calculate the Floorlight and add it to the FloorLightArray
+				int xPos = ((int)position.x)%maximumWidth;
+				int yPos = ((int)position.y)%maximumHeight;
 				FloorLightArray[stepCount + currentColumn*(WINDOW_HEIGHT_HALF)] =
-					PreCalculatedLighting[(int)position.x + (int)position.y*maximumWidth];
+					PreCalculatedLighting[xPos + yPos*maximumWidth];
 				// updateColorBasedOnLocation(position, floorColor);
 				//CeilingLightArray[stepCount + currentColumn*(WINDOW_HEIGHT_HALF)] = skyLight; //updateColorBasedOnLocation(position, floorColor);
 				return 0;
@@ -1314,6 +1320,7 @@ int WinMain(int argc, char **argv) {
 	
 	LightArray[1] = *new PointLight(640/2		, 480/2	,1.0	,1.0	,1.0	,1.0f	,512.0f	);
 	LightArray[2] = *new PointLight(640/5		, 480/5	,1.0	,1.0	,1.0	,1.0f	,512.0f	);
+	LightArray[2].dynamic = true;
 	LightArray[3] = *new PointLight(770	, 110	,1.0	,0.0	,0.0	,1.0f	,512.0f	);
 	LightArray[4] = *new PointLight(500	, 260	,0.0	,1.0	,0.0	,1.0f	,512.0f	);
 	LightArray[5] = *new PointLight(760	, 350	,0.0	,0.0	,1.0	,1.0f	,512.0f	);
