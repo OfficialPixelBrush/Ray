@@ -845,9 +845,10 @@ class Ray {
 				}
 				return 1;
 			} else {
+				// Maybe bake the lighting, except "dynamic" lights-?
 				// Insert Floor and ceiling lighting here
 				// Calculate the Floorlight and add it to the FloorLightArray
-				FloorLightArray[stepCount + currentColumn*(WINDOW_HEIGHT_HALF)] = updateColorBasedOnLocation(position, floorColor);
+				//FloorLightArray[stepCount + currentColumn*(WINDOW_HEIGHT_HALF)] = updateColorBasedOnLocation(position, floorColor);
 				//CeilingLightArray[stepCount + currentColumn*(WINDOW_HEIGHT_HALF)] = skyLight; //updateColorBasedOnLocation(position, floorColor);
 				return 0;
 			}
