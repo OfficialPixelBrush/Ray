@@ -330,6 +330,8 @@ struct Color *FloorLightArray;
 struct Color *CeilingLightArray;
 // Contains the pre-calculated Distances of each Step
 float *StepSizeDistanceArray;
+// Contains the pre-calculated Lighting of the floor and ceiling
+Color *PreCalculatedLighting;
 
 /* -- SDL Pointers --*/
 SDL_Event event;
@@ -354,6 +356,9 @@ int numberOfLights = 10;
 int numberOfBounces = 0;
 int numberOfRenderSectors = 16;
 int numberOfRays = numberOfRenderSectors;
+// Max Room size;
+int maximumWidth;
+int maximumHeight;
 
 /* ---- Camera Variables ---- */
 Point cameraPosition;
@@ -754,6 +759,46 @@ float getBounceReflection(float incidentAngle, float normalAngle) {
 }
 
 /* ---- RAYTRACING ---- */
+
+
+// Used to calculate the lighting of the specified position
+Color updateColorBasedOnLocation(Point position, Color baseColor) {
+	Color resultingColor = black;
+	// Check if we hit anything on our way to a lightsource
+	// TODO: Could theoretically be threaded?
+	for (int currentLightIndex = 1; currentLightIndex <= numberOfLights; currentLightIndex++) {
+		// Get current Light
+		PointLight currentLightObject = LightArray[currentLightIndex];
+		int lineCoveringLight = checkIfAnyLinesIntersect(position,currentLightObject.position);
+		// If no line obstructs the lightsource, add it's value to the screen
+		if (!lineCoveringLight) {
+			// Scale brightness acording to distance
+			float distanceToLight = getDistance(position,currentLightObject.position);
+			if (distanceToLight <= currentLightObject.distance) {
+				float normalizedLight = (1.0-(distanceToLight/currentLightObject.distance)) * currentLightObject.brightness;
+				normalizedLight = normalizedLight*normalizedLight;
+				resultingColor.r += (currentLightObject.color.r * baseColor.r * normalizedLight);
+				resultingColor.g += (currentLightObject.color.g * baseColor.g * normalizedLight);
+				resultingColor.b += (currentLightObject.color.b * baseColor.b * normalizedLight);
+			}
+		}
+	}
+	
+	// Distance Based Shade	
+	/*
+	float normalizedShade = 1.0f-((float)stepCount/(float)(WINDOW_HEIGHT_HALF));
+	resultingColor.r *= normalizedShade;
+	resultingColor.g *= normalizedShade;
+	resultingColor.b *= normalizedShade;
+	*/
+	
+	// Clamp results from 0.0f to 1.0f
+	resultingColor.r = clamp(resultingColor.r, 0.0f, 1.0f);
+	resultingColor.g = clamp(resultingColor.g, 0.0f, 1.0f); 
+	resultingColor.b = clamp(resultingColor.b, 0.0f, 1.0f);
+	return resultingColor;
+}
+
 // The Ray class, used for raytracing
 class Ray {
 	public:
@@ -848,47 +893,13 @@ class Ray {
 				// Maybe bake the lighting, except "dynamic" lights-?
 				// Insert Floor and ceiling lighting here
 				// Calculate the Floorlight and add it to the FloorLightArray
-				//FloorLightArray[stepCount + currentColumn*(WINDOW_HEIGHT_HALF)] = updateColorBasedOnLocation(position, floorColor);
+				FloorLightArray[stepCount + currentColumn*(WINDOW_HEIGHT_HALF)] =
+					PreCalculatedLighting[(int)position.x + (int)position.y*maximumWidth];
+				// updateColorBasedOnLocation(position, floorColor);
 				//CeilingLightArray[stepCount + currentColumn*(WINDOW_HEIGHT_HALF)] = skyLight; //updateColorBasedOnLocation(position, floorColor);
 				return 0;
 			}
 			
-		}
-		
-		// Used to calculate the lighting of the specified position
-		Color updateColorBasedOnLocation(Point position, Color baseColor) {
-			Color resultingColor = black;
-			// Check if we hit anything on our way to a lightsource
-			// TODO: Could theoretically be threaded?
-			for (int currentLightIndex = 1; currentLightIndex <= numberOfLights; currentLightIndex++) {
-				// Get current Light
-				PointLight currentLightObject = LightArray[currentLightIndex];
-				int lineCoveringLight = checkIfAnyLinesIntersect(position,currentLightObject.position);
-				// If no line obstructs the lightsource, add it's value to the screen
-				if (!lineCoveringLight) {
-					// Scale brightness acording to distance
-					float distanceToLight = getDistance(position,currentLightObject.position);
-					if (distanceToLight <= currentLightObject.distance) {
-						float normalizedLight = (1.0-(distanceToLight/currentLightObject.distance)) * currentLightObject.brightness;
-						normalizedLight = normalizedLight*normalizedLight;
-						resultingColor.r += (currentLightObject.color.r * baseColor.r * normalizedLight);
-						resultingColor.g += (currentLightObject.color.g * baseColor.g * normalizedLight);
-						resultingColor.b += (currentLightObject.color.b * baseColor.b * normalizedLight);
-					}
-				}
-			}
-			
-			// Distance Based Shade	
-			float normalizedShade = 1.0f-((float)stepCount/(float)(WINDOW_HEIGHT_HALF));
-			resultingColor.r *= normalizedShade;
-			resultingColor.g *= normalizedShade;
-			resultingColor.b *= normalizedShade;
-			
-			// Clamp results from 0.0f to 1.0f
-			resultingColor.r = clamp(resultingColor.r, 0.0f, 1.0f);
-			resultingColor.g = clamp(resultingColor.g, 0.0f, 1.0f); 
-			resultingColor.b = clamp(resultingColor.b, 0.0f, 1.0f);
-			return resultingColor;
 		}
 };
 
@@ -1100,6 +1111,70 @@ void preCalculateStepArray() {
 	*/
 }
 
+void precalculateLighting() {
+	// Determine Bounds
+	float minX, minY = 0.0f;
+	float maxX, maxY = 0.0f;
+	for (int lineIndex = 1; lineIndex <= numberOfLines; lineIndex++) {
+		Line* currentLine = &LineArray[lineIndex];
+		// P1
+		Point currentPoint = currentLine->p1;
+			if (currentPoint.x < minX) {
+				minX = currentPoint.x;
+			}
+			if (currentPoint.y < minY) {
+				minY = currentPoint.y;
+			}
+			
+			if (currentPoint.x > maxX) {
+				maxX = currentPoint.x;
+			}
+			if (currentPoint.y > maxY) {
+				maxY = currentPoint.y;
+			}	
+		// P2
+		currentPoint = currentLine->p2;
+			if (currentPoint.x < minX) {
+				minX = currentPoint.x;
+			}
+			if (currentPoint.y < minY) {
+				minY = currentPoint.y;
+			}
+			
+			if (currentPoint.x > maxX) {
+				maxX = currentPoint.x;
+			}
+			if (currentPoint.y > maxY) {
+				maxY = currentPoint.y;
+			}	
+		printf("%d\tX: %f - %f\n\tY: %f - %f\n", lineIndex, minX, maxX, minY, maxY);
+	}
+	
+	maximumWidth  = (int)(ceil(maxX) - floor(minX));
+	maximumHeight = (int)(ceil(maxY) - floor(minY));
+	printf("%d:%d\n", maximumWidth, maximumHeight);
+	
+	// Allocate Lighting
+	PreCalculatedLighting = (struct Color *)calloc(maximumWidth*maximumHeight, sizeof(struct Color));
+	
+	// Calculate it!
+	Point currentPosition;
+	for (int y = 0; y < maximumHeight; y++) {
+		for (int x = 0; x < maximumWidth; x++) {
+			currentPosition.x = (float)x;
+			currentPosition.y = (float)y;
+			PreCalculatedLighting[x + y*maximumWidth] = updateColorBasedOnLocation(currentPosition, floorColor);
+		}
+	}
+	//FloorLightArray = (struct Color *)calloc(WINDOW_WIDTH*(WINDOW_HEIGHT_HALF)+1, sizeof(struct Color));
+	
+	
+	// Allocate Light Array
+	
+	// Fill Light Array
+	//updateColorBasedOnLocation(position, intersectedLineObject->color)
+}
+
 /* --- MAIN ---- */
 // Ye olden Main function
 int WinMain(int argc, char **argv) {
@@ -1283,6 +1358,8 @@ int WinMain(int argc, char **argv) {
 	LineArray[7] = *new Line(corner2,corner3,segment1);
 	LineArray[8] = *new Line(corner2,corner4,segment1);
 	*/
+	
+	precalculateLighting();
 	
 	// Threadpools
 	std::vector<std::thread> raytraceThreadPool;
