@@ -405,6 +405,10 @@ class Texture {
 }
 */
 
+class Segment {
+	
+};
+
 // A primitive PointLight
 class PointLight {
 	public:
@@ -472,6 +476,12 @@ class Line {
 			p2 = _p2;
 			color = _color;
 		}
+};
+
+// Goes from one Portal to another
+class Portal: public Line {
+	public:
+		int portalIndex; // Used to determine what other portal it links to
 };
 
 /* ---- HELPER FUNCTIONS ---- */
@@ -803,6 +813,8 @@ Color updateColorBasedOnLocation(Point position, Color baseColor) {
 	return resultingColor;
 }
 
+
+
 // The Ray class, used for raytracing
 class Ray {
 	public:
@@ -897,8 +909,8 @@ class Ray {
 				// Maybe bake the lighting, except "dynamic" lights-?
 				// Insert Floor and ceiling lighting here
 				// Calculate the Floorlight and add it to the FloorLightArray
-				int xPos = ((int)position.x)%maximumWidth;
-				int yPos = ((int)position.y)%maximumHeight;
+				int xPos = abs(((int)position.x)%maximumWidth );
+				int yPos = abs(((int)position.y)%maximumHeight);
 				FloorLightArray[stepCount + currentColumn*(WINDOW_HEIGHT_HALF)] =
 					PreCalculatedLighting[xPos + yPos*maximumWidth];
 				// updateColorBasedOnLocation(position, floorColor);
