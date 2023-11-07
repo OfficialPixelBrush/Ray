@@ -317,7 +317,6 @@ struct ScreenColumn {
 typedef struct ScreenColumn ScreenColumn;
 
 /* ---- Debug Variables */
-bool topDown = false;
 bool renderMode = false;
 Color skyLight;
 Color floorColor;
@@ -368,6 +367,8 @@ class PointLight {
 class Texture {
 	public:
 		int width, height;
+		int numberOfVerticalRepeats = 1;
+		int numberOfHorizontalRepeats = 1;
 		Color *TextureData;
 		Texture(int _width, int _height) {
 			width = _width;
@@ -388,8 +389,12 @@ class Texture {
 		}
 		
 		Color getRangedTexturePixel(float xRange, float yRange) {
-			int xPixel = (int)((float)width *xRange);
-			int yPixel = (int)((float)height*yRange);
+			// xRange and yRange come in from 0.0f to 1.0f
+			xRange*=(float)numberOfHorizontalRepeats;
+			yRange*=(float)numberOfVerticalRepeats;
+			
+			int xPixel = abs((int)((float)width *xRange))%width;
+			int yPixel = abs((int)((float)height*yRange))%height;
 			return TextureData[xPixel + yPixel*width];
 		}
 };
@@ -502,6 +507,9 @@ float cameraHeight = 0.0f;
 float cameraSpeedHorziontal = 0.0f;
 float cameraSpeedVertical = 0.0f;
 float cameraSpeedRotational = 0.0f;
+
+// We need missing texture here :v
+Texture missingTexture(2,2);
 
 /* ---- HELPER FUNCTIONS ---- */
 // If returns 0, no intersection has been found
@@ -1098,8 +1106,7 @@ void updateScreen() {
 	int sliceSize;
 	uint8_t *pixel;
 	int newFrameTime;
-	Color renderColor;
-	Color pointColor;
+	Color pixelColor;
 	// Could probably also be given to multiple threads
 	while(running) {
 		// Start new frame
@@ -1113,10 +1120,6 @@ void updateScreen() {
 			for (int currentColumn = 1; currentColumn < WINDOW_WIDTH; currentColumn++) {
 				ScreenColumn* currentScreenColumn = &ScreenColumnArray[currentColumn];
 				
-				// Texture mapping
-				//texture = getTextureColumn(currentScreenColumn->lineCoordinate)
-				renderColor = currentScreenColumn->color;
-				
 				// Calculate Size of column
 				sliceSize = currentScreenColumn->amountOfRaySteps;
 				
@@ -1124,11 +1127,12 @@ void updateScreen() {
 				for (int currentRow = 0; currentRow <= WINDOW_HEIGHT; currentRow++) {
 					if (currentRow < sliceSize) {
 						// Draw Ceiling
-						pointColor = FloorLightArray[currentRow + currentColumn*(WINDOW_HEIGHT_HALF)];
-						renderPixel(pixel, WINDOW_WIDTH-currentColumn, currentRow, pointColor);
+						pixelColor = FloorLightArray[currentRow + currentColumn*(WINDOW_HEIGHT_HALF)];
+						renderPixel(pixel, WINDOW_WIDTH-currentColumn, currentRow, pixelColor);
 					} else {
 						// Render Wall
 						if (currentRow <= WINDOW_HEIGHT-sliceSize) {
+							// If there is a texture, draw it
 							if (currentScreenColumn->hitTexture) {
 								int wallBeginning = sliceSize;
 								int wallEnd = WINDOW_HEIGHT-sliceSize;
@@ -1140,13 +1144,15 @@ void updateScreen() {
 									currentScreenColumn->lineCoordinate,
 									rowCoorinate
 								);
-								renderColor = textureColor; //colorAdd(textureColor, renderColor);
+								pixelColor = colorMultiply(textureColor, currentScreenColumn->color); //colorAdd(textureColor, renderColor);
+							} else {
+								pixelColor = currentScreenColumn->color;
 							}
-							renderPixel(pixel, WINDOW_WIDTH-currentColumn, currentRow, renderColor);
+							renderPixel(pixel, WINDOW_WIDTH-currentColumn, currentRow, pixelColor);
 						} else {
 							// Render Floor
-							pointColor = FloorLightArray[(WINDOW_HEIGHT-currentRow) + currentColumn*(WINDOW_HEIGHT_HALF)];
-							renderPixel(pixel, WINDOW_WIDTH-currentColumn, currentRow, pointColor);
+							pixelColor = FloorLightArray[(WINDOW_HEIGHT-currentRow) + currentColumn*(WINDOW_HEIGHT_HALF)];
+							renderPixel(pixel, WINDOW_WIDTH-currentColumn, currentRow, pixelColor);
 						}
 					}
 				}
@@ -1264,10 +1270,95 @@ void precalculateLighting() {
 		for (int x = 0; x < maximumWidth; x++) {
 			currentPosition.x = (float)x;
 			currentPosition.y = (float)y;
-			PreCalculatedLighting[x + y*maximumWidth] = updateColorBasedOnLocation(currentPosition, floorColor);
+			PreCalculatedLighting[x + y*maximumWidth] =
+				updateColorBasedOnLocation(currentPosition, floorColor);
 		}
 	}
 	printf("Finished!\n");
+}
+
+Texture importNetpbm(string path) {
+	FILE *filePointer;
+	int width, heigth;
+	Color color;
+	filePointer = fopen(path.c_str(),"rb");
+	if (filePointer == NULL) {
+		printf("Missing Texture! No file at %s\n", path.c_str());
+		return missingTexture;
+	} else {
+		// Read in image info
+		Texture *newTexture;
+		unsigned char currentByte;
+		short int stateCounter = 0;
+		int width, height, bitdepth;
+		/*
+			0: Reading Filetype
+			1: Reading Width
+			2: Reading Height
+			3: Reading Bit-depth
+			4: Create Texture
+			5: Read Data
+			6: Finished
+		*/
+		while (stateCounter < 6) {
+			switch(stateCounter) {
+				case 0: // 0: Reading Filetype
+					currentByte = fgetc(filePointer);
+					if (currentByte==0x0A) {
+						stateCounter++;
+					}
+					break;
+				case 1: // 1: Reading Width
+					if (currentByte==0x20) {
+						stateCounter++;
+					} else {
+						fscanf(filePointer, "%d", &width);
+						currentByte = fgetc(filePointer);
+					}
+					break;
+				case 2: // 1: Reading Height
+					if (currentByte==0x0A) {
+						stateCounter++;
+						currentByte = fgetc(filePointer);
+					} else {
+						fscanf(filePointer, "%d", &height);
+						currentByte = fgetc(filePointer);
+					}
+					break;
+				case 3: // 0: Reading Bitdepth
+					if (currentByte==0x0A) {
+						stateCounter++;
+					} else {
+						// A bit of a hack to avoid losing the first character
+						fseek(filePointer, -1, SEEK_CUR);
+						fscanf(filePointer, "%d", &bitdepth);
+						currentByte = fgetc(filePointer);
+					}
+					break;
+				case 4:
+					newTexture = new Texture(width,height);
+					stateCounter++;
+					break;
+				case 5:
+					for (int y = 0; y < height; y++) {
+						for (int x = 0; x < width; x++) {
+							currentByte = fgetc(filePointer);
+							color.r = ((float)currentByte/(float)bitdepth);
+							currentByte = fgetc(filePointer);
+							color.g = ((float)currentByte/(float)bitdepth);
+							currentByte = fgetc(filePointer);
+							color.b = ((float)currentByte/(float)bitdepth);
+							newTexture->setTexturePixel(x, y, color);
+						}
+					}
+					stateCounter++;
+					break;
+			}
+		}
+		printf("New Texture: %d:%d@%d\n", width, height, bitdepth);
+		fclose(filePointer);
+		return *newTexture;
+	}
 }
 
 /* --- MAIN ---- */
@@ -1374,28 +1465,36 @@ int WinMain(int argc, char **argv) {
 	
 	// Scene is loaded here
 	/*	Textures */
-	Texture missingTexture(2,2);
 	missingTexture.setTexturePixel(0,0,black);
 	missingTexture.setTexturePixel(0,1,magenta);
 	missingTexture.setTexturePixel(1,0,magenta);
 	missingTexture.setTexturePixel(1,1,black);
 	TextureArray[1] = missingTexture;
 	
+	Texture brickTexture = importNetpbm("./textures/brick.ppm");
+	brickTexture.numberOfHorizontalRepeats = 4;
+	brickTexture.numberOfVerticalRepeats = 4;
+	TextureArray[2] = brickTexture;
+	
 	/* Geometry */
 	// Surrounding Walls
 	LineArray[1] = *new Line(0	,0	,640*2,0	,1.0, 0.0, 0.0);
 	LineArray[2] = *new Line(640*2,480,640*2,0	,0.0, 1.0, 0.0);
-	LineArray[2].portalIndex = 4;
+	LineArray[2].emissive = true;
+	//LineArray[2].portalIndex = 4;
 	LineArray[3] = *new Line(0	,480,640*2,480,0.0, 0.0, 1.0);
 	LineArray[4] = *new Line(0 	,0,0	,480	,1.0, 1.0, 1.0);
-	LineArray[4].portalIndex = 2;
+	//LineArray[4].portalIndex = 2;
 	
 	// House
 	LineArray[5] = *new Line(100,180,400,180,1.0, 1.0, 1.0);
+	LineArray[5].texturePointer = &TextureArray[2];
 	LineArray[6] = *new Line(200,180,200,280,1.0, 1.0, 1.0);
+	LineArray[6].texturePointer = &TextureArray[2];
 	LineArray[7] = *new Line(200,280,300,280,1.0, 1.0, 1.0);
-	LineArray[7].texturePointer = &TextureArray[1];
+	LineArray[7].texturePointer = &TextureArray[2];
 	LineArray[8] = *new Line(400,180,400,480,1.0, 1.0, 1.0);
+	LineArray[8].texturePointer = &TextureArray[2];
 	
 	// Column
 	LineArray[9] =  *new Line(660,200,680,210,1.0, 1.0, 1.0);
@@ -1436,21 +1535,6 @@ int WinMain(int argc, char **argv) {
 	renderThreadPool.emplace_back(updateScreen);
 	
     while (running) {		
-		if (topDown) {
-			// Render Lights
-			for (int i = 1; i <= numberOfLights; i++) {
-				SDL_SetRenderDrawColor(renderer, LightArray[i].color.r*255, LightArray[i].color.g*255, LightArray[i].color.b*255, 255);
-				SDL_RenderDrawPoint(renderer, (int)LightArray[i].position.x, (int)LightArray[i].position.y);
-			}
-			
-			
-			// Render Lines
-			for (int i = 1; i <= numberOfLines; i++) {
-				SDL_SetRenderDrawColor(renderer, LineArray[i].color.r*255, LineArray[i].color.g*255, LineArray[i].color.b*255, 255);
-				SDL_RenderDrawLine(renderer, (int)LineArray[i].p1.x, (int)LineArray[i].p1.y, (int)LineArray[i].p2.x, (int)LineArray[i].p2.y);
-			}
-		}
-		
 		// Raytrace
 		// Only trace new frames if last frame is done drawing
 		if (!frameDone) {
