@@ -2,6 +2,7 @@
 #include <SDL2/SDL.h>
 #include <thread>
 #include <vector>
+#include <string>
 
 using namespace std;
 
@@ -486,8 +487,8 @@ int lastFrameTime = 0;
 int numberOfLines = 20;
 int numberOfLights = 10;
 int numberOfBounces = 0;
-int numberOfRenderSectors = 16;
 int numberOfTextures = 10;
+int numberOfRenderSectors = 1;
 int numberOfRays = numberOfRenderSectors;
 // Max Room size;
 int maximumWidth;
@@ -1363,7 +1364,13 @@ Texture importNetpbm(string path) {
 
 /* --- MAIN ---- */
 // Ye olden Main function
+#ifdef __linux__ // Check for Linux
+// Code specific to Linux
+int main() {
+#elif defined(_WIN32) || defined(_WIN64) // Check for Windows
+// Code specific to Windows
 int WinMain(int argc, char **argv) {
+#endif
 	printf("Hello, World!\n");
 	//srand(time(NULL)); 
 	
