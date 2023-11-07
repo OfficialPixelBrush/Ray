@@ -1,12 +1,9 @@
-#include <iostream>  
 #include <math.h>
 #include <SDL2/SDL.h>
-#include <time.h>
-#include <stdlib.h>
 #include <thread>
 #include <vector>
 
-using namespace std;  
+using namespace std;
 
 // Utility macros
 #define CHECK_ERROR(test, message) \
@@ -17,8 +14,8 @@ using namespace std;
         } \
     } while(0)
 
-int WINDOW_WIDTH 		= 640;
-int WINDOW_HEIGHT 		= 480;
+int WINDOW_WIDTH 		= 1280;
+int WINDOW_HEIGHT 		= 720;
 int WINDOW_WIDTH_HALF 	= WINDOW_WIDTH/2;
 int WINDOW_HEIGHT_HALF 	= WINDOW_HEIGHT/2;
 #define PI 3.1415926535897932384626433832795028841971693993751058209749445923078164062
@@ -314,72 +311,18 @@ typedef struct Color Color;
 struct ScreenColumn {
 	Color color;
 	int amountOfRaySteps;
+	float lineCoordinate;
+	struct Texture *hitTexture;
 };
 typedef struct ScreenColumn ScreenColumn;
-
-/* ---- Pointers ---- */
-// Contains the Array Objects used for calculating the screen
-struct Ray *RayArray;
-// Contains the Lines making up the level
-struct Line *LineArray;
-// Contains the Point Lights of the Level
-struct PointLight *LightArray;
-// Contains the calculated Distances and Colors of the Floorlight
-struct Color *FloorLightArray;
-// Contains the calculated Distances and Colors of the Ceilinglight
-struct Color *CeilingLightArray;
-// Contains the pre-calculated Distances of each Step
-float *StepSizeDistanceArray;
-// Contains the pre-calculated Lighting of the floor and ceiling
-Color *PreCalculatedLighting;
-
-/* -- SDL Pointers --*/
-SDL_Event event;
-SDL_Renderer *renderer;
-SDL_Window *window;
-SDL_Texture *texture;
-void *texture_pixels;
-int texture_pitch;
-
-ScreenColumn *ScreenColumnArray;
-
-// Camera Variables
-
-/* ---- Runtime Variables ---- */
-bool frameDone = false;
-bool running = true;
-int lastFrameTime = 0;
-
-/* ---- Object Limits ---- */
-int numberOfLines = 20;
-int numberOfLights = 10;
-int numberOfBounces = 0;
-int numberOfRenderSectors = 16;
-int numberOfRays = numberOfRenderSectors;
-// Max Room size;
-int maximumWidth;
-int maximumHeight;
-
-/* ---- Camera Variables ---- */
-Point cameraPosition;
-float cameraRotation = 0.0f;
-float fieldOfView = 180.0f;
-float horizonDistance = 16.0f;
-float initialRayStepSize = 0.1f;
-
-
-/* ---- Player Variables ---- */
-float maxSpeed = 6.0f;
-float cameraHeight = 0.0f;
-float cameraSpeedHorziontal = 0.0f;
-float cameraSpeedVertical = 0.0f;
-float cameraSpeedRotational = 0.0f;
 
 /* ---- Debug Variables */
 bool topDown = false;
 bool renderMode = false;
 Color skyLight;
 Color floorColor;
+Point defaultPosition;
+bool noclip = true;
 
 /* --- Default Color ---- */
 Color white;
@@ -394,21 +337,6 @@ Color magenta;
 Color cyan;
 
 /* ---- CLASSES ---- */
-
-/*
-class Material {
-	public 
-}
-
-class Texture {
-	
-}
-*/
-
-class Segment {
-	
-};
-
 // A primitive PointLight
 class PointLight {
 	public:
@@ -436,6 +364,35 @@ class PointLight {
 	}
 };
 
+// A 2D Image to be projected onto a line, floor or ceiling
+class Texture {
+	public:
+		int width, height;
+		Color *TextureData;
+		Texture(int _width, int _height) {
+			width = _width;
+			height = _height;
+			TextureData = (struct Color *)calloc(width*height, sizeof(struct Color));
+		}
+		
+		void setTexturePixel(int xPixel, int yPixel, float r, float g, float b) {
+			Color color;
+			color.r = r;
+			color.g = g;
+			color.b = b;
+			TextureData[xPixel + yPixel*width] = color;
+		}
+		
+		void setTexturePixel(int xPixel, int yPixel, Color _color) {
+			TextureData[xPixel + yPixel*width] = _color;
+		}
+		
+		Color getRangedTexturePixel(float xRange, float yRange) {
+			int xPixel = (int)((float)width *xRange);
+			int yPixel = (int)((float)height*yRange);
+			return TextureData[xPixel + yPixel*width];
+		}
+};
 
 // A simple line or wall
 class Line {
@@ -444,6 +401,9 @@ class Line {
 		Point p2;
 		Color color;
 		bool emissive = false;
+		Texture* texturePointer;
+		// If > 0, it's a portal
+		int portalIndex = 0;
 		
 		// Without color
 		Line(float x1, float y1, float x2, float y2) {
@@ -478,11 +438,70 @@ class Line {
 		}
 };
 
-// Goes from one Portal to another
-class Portal: public Line {
-	public:
-		int portalIndex; // Used to determine what other portal it links to
+class Segment {
+	
 };
+
+/* ---- Pointers ---- */
+// Contains the Array Objects used for calculating the screen
+struct Ray *RayArray;
+// Contains the Lines making up the level
+struct Line *LineArray;
+// Contains the Point Lights of the Level
+struct PointLight *LightArray;
+// Contains the calculated Distances and Colors of the Floorlight
+struct Color *FloorLightArray;
+// Contains the calculated Distances and Colors of the Ceilinglight
+struct Color *CeilingLightArray;
+// Contains the pre-calculated Distances of each Step
+float *StepSizeDistanceArray;
+// Contains the pre-calculated Lighting of the floor and ceiling
+struct Color *PreCalculatedLighting;
+// Contains the pre-calculated Lighting of the floor and ceiling
+struct Texture *TextureArray;
+
+/* -- SDL Pointers --*/
+SDL_Event event;
+SDL_Renderer *renderer;
+SDL_Window *window;
+SDL_Texture *texture;
+void *texture_pixels;
+int texture_pitch;
+
+ScreenColumn *ScreenColumnArray;
+
+// Camera Variables
+
+/* ---- Runtime Variables ---- */
+bool frameDone = false;
+bool running = true;
+int lastFrameTime = 0;
+
+/* ---- Object Limits ---- */
+int numberOfLines = 20;
+int numberOfLights = 10;
+int numberOfBounces = 0;
+int numberOfRenderSectors = 16;
+int numberOfTextures = 10;
+int numberOfRays = numberOfRenderSectors;
+// Max Room size;
+int maximumWidth;
+int maximumHeight;
+
+/* ---- Camera Variables ---- */
+Point cameraPosition;
+float cameraRotation = 0.0f;
+float fieldOfView = 180.0f;
+float horizonDistance = 16.0f;
+float initialRayStepSize = 0.1f;
+
+
+/* ---- Player Variables ---- */
+float maxSpeed = 10.0f;
+float cameraHeight = 0.0f;
+float cameraSpeedHorziontal = 0.0f;
+float cameraSpeedVertical = 0.0f;
+float cameraSpeedRotational = 0.0f;
 
 /* ---- HELPER FUNCTIONS ---- */
 // If returns 0, no intersection has been found
@@ -508,54 +527,24 @@ int checkIfAnyLinesIntersect(const Point& p1, const Point& p2) {
 
 /* Input two lines, returns their Intersection Point */
 Point getIntersectionPoint(Line Line1, Line Line2) {
+	float a1 = Line1.p2.y - Line1.p1.y;
+	float b1 = Line1.p1.x - Line1.p2.x;
+	float c1 = a1 * Line1.p1.x + b1 * Line1.p1.y;
+
+	float a2 = Line2.p2.y - Line2.p1.y;
+	float b2 = Line2.p1.x - Line2.p2.x;
+	float c2 = a2 * Line2.p1.x + b2 * Line2.p1.y;
+
+	float delta = a1 * b2 - a2 * b1;
+
+	if (delta == 0) {
+		return defaultPosition;
+	}
+
 	Point result;
-  // Check if Line1 is vertical
-  if (Line1.p1.x == Line1.p2.x) {
-    if (Line2.p1.x == Line2.p2.x) {
-      // Both Lines are vertical, so they are either coincident or parallel.
-      if (Line1.p1.x == Line2.p1.x && ((Line1.p1.y <= Line2.p2.y && Line1.p2.y <= Line2.p1.y) ||
-                                      (Line2.p1.y <= Line1.p2.y && Line2.p2.y <= Line1.p1.y))) {
-        return Line1.p1; // Return a non-zero value to indicate an intersection
-      }
-    } else {
-      // Calculate the equation of the Line representing Line2
-      float m2 = (Line2.p2.y - Line2.p1.y) / (Line2.p2.x - Line2.p1.x);
-      float b2 = Line2.p1.y - m2 * Line2.p1.x;
-
-      // Calculate the x-coordinate of the intersection point
-      float x = Line1.p1.x;
-      float y = m2 * x + b2;
-
-      // Check if the intersection point is within the Line segments
-      if ((Line1.p1.y <= y <= Line1.p2.y) && (Line2.p1.y <= y <= Line2.p2.y)) {
-        Line1.p1.x = x;
-        Line1.p1.y = y;
-        return Line1.p1; // Return a non-zero value to indicate an intersection
-      }
-    }
-  } else {
-    float m1 = (Line1.p2.y - Line1.p1.y) / (Line1.p2.x - Line1.p1.x);
-    float m2 = (Line2.p2.y - Line2.p1.y) / (Line2.p2.x - Line2.p1.x);
-
-    if (m1 == m2) {
-      // Lines are parallel, no intersection
-      return result;
-    }
-
-    // Calculate the x-coordinate of the intersection point
-    float x = (m1 * Line1.p1.x - Line1.p1.y - m2 * Line2.p1.x + Line2.p1.y) / (m1 - m2);
-    float y = m1 * (x - Line1.p1.x) + Line1.p1.y;
-
-    // Check if the intersection point is within the Line segments
-    if ((Line1.p1.x <= x <= Line1.p2.x) && (Line2.p1.x <= x <= Line2.p2.x)) {
-      Line1.p1.x = x;
-      Line1.p1.y = y;
-      return Line1.p1; // Return a non-zero value to indicate an intersection
-    }
-  }
-
-  // No intersection found
-  return result;
+	result.x = (b2 * c1 - b1 * c2) / delta;
+	result.y = (a1 * c2 - a2 * c1) / delta;
+	return result;
 }
 
 
@@ -622,6 +611,24 @@ int intClamp(int in, int min, int max) {
 int limitDegreeAngle(float& degreeAngle) {
 	degreeAngle = fmod(degreeAngle,360.0f);
 	return 0;
+}
+
+// Mulitply two colors together
+Color colorMultiply(Color& color1, Color& color2) {
+	Color resultColor;
+	resultColor.r = color1.r * color2.r;
+	resultColor.g = color1.g * color2.g;
+	resultColor.b = color1.b * color2.b;
+	return resultColor;
+}
+
+// Add two colors together
+Color colorAdd(Color& color1, Color& color2) {
+	Color resultColor;
+	resultColor.r = color1.r + color2.r;
+	resultColor.g = color1.g + color2.g;
+	resultColor.b = color1.b + color2.b;
+	return resultColor;
 }
 
 /* ---- TEXTURE FUNCTIONS ---- */
@@ -708,6 +715,7 @@ int processControls() {
 
 void updateInputs() {
 	float lightMotion = -2.0;
+	Point previousPosition = cameraPosition;
 	while(running) {		
 		processControls();
 		
@@ -716,6 +724,9 @@ void updateInputs() {
 		cameraPosition.y += cameraSpeedVertical;
 		cameraRotation += cameraSpeedRotational;
 		limitDegreeAngle(cameraRotation);
+		if ((checkIfAnyLinesIntersect(previousPosition,cameraPosition)) && !noclip) {
+			cameraPosition = previousPosition;
+		}
 		
 		// Limit to maxSpeed
 		if (cameraSpeedHorziontal >= maxSpeed) {
@@ -741,6 +752,7 @@ void updateInputs() {
 		}
 	
 		LightArray[2].position.x+=lightMotion;
+		previousPosition = cameraPosition;
 	}
 }
 
@@ -813,7 +825,37 @@ Color updateColorBasedOnLocation(Point position, Color baseColor) {
 	return resultingColor;
 }
 
+// Used for reprojecting portal coordinates, and getting texture positions
+// Returns scale of 0.0f to 1.0f, where 0.0f = p1, and 1.0f = p2
+float mapWorldPointToLineCoordinate(Line& line, Point& intersectionPoint) {
+	// Get length of line
+	float lineLength = getDistance(line.p1, line.p2);
+	// Get distance between p1 and intersectionPoint
+	float distanceFromOrigin = getDistance(line.p1, intersectionPoint);
+	//printf("%f:%f - %f:%f\n", line.p1.x, line.p1.y, intersectionPoint.x, intersectionPoint.y);
+	return distanceFromOrigin/lineLength;
+}
 
+Point mapLineCoordinateToWorldPoint(Line& line, float lineCoordinate) {
+  Point worldSpacePoint;
+  worldSpacePoint.x = line.p1.x + lineCoordinate * (line.p2.x - line.p1.x);
+  worldSpacePoint.y = line.p1.y + lineCoordinate * (line.p2.y - line.p1.y);
+  return worldSpacePoint;
+}
+
+
+// Figure out which Portal to look out of
+Point getPortalPosition(int originPortalLineIndex, int destinationPortalLineIndex, Point& intersectionPoint) {
+	//printf("%f\n", contactPointToLineCoordinate(*intersectedLineObject,intersectionPoint));
+	if (LineArray[destinationPortalLineIndex].portalIndex) {
+		// Figure out where we hit the line locally
+		float lineCoordinate = mapWorldPointToLineCoordinate(LineArray[originPortalLineIndex],intersectionPoint);
+		Point worldCoorindate = mapLineCoordinateToWorldPoint(LineArray[destinationPortalLineIndex], lineCoordinate);
+		//printf("%f -> %f:%f\n", lineCoordinate, worldCoorindate.x, worldCoorindate.y);
+		return worldCoorindate;
+	}
+	return defaultPosition;
+}
 
 // The Ray class, used for raytracing
 class Ray {
@@ -888,13 +930,27 @@ class Ray {
 				// Get Intersection Point of Ray and Line
 				Line RayLine(cameraPosition,position);
 				Point intersectionPoint = getIntersectionPoint(RayLine,*intersectedLineObject);
+				//printf("%f,%f\n", intersectionPoint.x, intersectionPoint.y);
+				//running = false;
 				
-				// Reset Position of the Ray to it's previous position
-				// (to avoid intersecting with the same line twice when calculating the lighting)
-				position = previousPosition;
+				// Portal check
+				if (intersectedLineObject->portalIndex) {
+					position = getPortalPosition(
+						intersectedLineIndex,
+						intersectedLineObject->portalIndex,
+						intersectionPoint
+					);
+					return 0;
+				} else {
+					// Reset Position of the Ray to it's previous position
+					// (to avoid intersecting with the same line twice when calculating the lighting)
+					position = previousPosition;
+				}
 				
 				// Get distance to camera
-				ScreenColumnArray[currentColumn].amountOfRaySteps = stepCount;//getDistance(position, cameraPosition);
+				ScreenColumnArray[currentColumn].amountOfRaySteps = stepCount;
+				// Get texture of hit line
+				ScreenColumnArray[currentColumn].hitTexture = intersectedLineObject->texturePointer;
 				
 				// Light Distance Shading
 				if (intersectedLineObject->emissive) {
@@ -902,8 +958,18 @@ class Ray {
 					ScreenColumnArray[currentColumn].color.g = intersectedLineObject->color.g;
 					ScreenColumnArray[currentColumn].color.b = intersectedLineObject->color.b;
 				} else {
-					ScreenColumnArray[currentColumn].color = updateColorBasedOnLocation(position, intersectedLineObject->color);
+					// If the line has a texture, ignore color
+					if (intersectedLineObject->texturePointer) {
+						ScreenColumnArray[currentColumn].color =
+							updateColorBasedOnLocation(position, white);
+					} else {
+						// If the line has no texture, use it's color
+						ScreenColumnArray[currentColumn].color =
+							updateColorBasedOnLocation(position, intersectedLineObject->color);
+					}
 				}
+				ScreenColumnArray[currentColumn].lineCoordinate =
+					mapWorldPointToLineCoordinate(*intersectedLineObject, intersectionPoint);
 				return 1;
 			} else {
 				// Maybe bake the lighting, except "dynamic" lights-?
@@ -913,7 +979,6 @@ class Ray {
 				int yPos = abs(((int)position.y)%maximumHeight);
 				FloorLightArray[stepCount + currentColumn*(WINDOW_HEIGHT_HALF)] =
 					PreCalculatedLighting[xPos + yPos*maximumWidth];
-				// updateColorBasedOnLocation(position, floorColor);
 				//CeilingLightArray[stepCount + currentColumn*(WINDOW_HEIGHT_HALF)] = skyLight; //updateColorBasedOnLocation(position, floorColor);
 				return 0;
 			}
@@ -1047,6 +1112,9 @@ void updateScreen() {
 			// TODO: For some reason there's this stray pixel on the side?? Pls fix!
 			for (int currentColumn = 1; currentColumn < WINDOW_WIDTH; currentColumn++) {
 				ScreenColumn* currentScreenColumn = &ScreenColumnArray[currentColumn];
+				
+				// Texture mapping
+				//texture = getTextureColumn(currentScreenColumn->lineCoordinate)
 				renderColor = currentScreenColumn->color;
 				
 				// Calculate Size of column
@@ -1061,6 +1129,19 @@ void updateScreen() {
 					} else {
 						// Render Wall
 						if (currentRow <= WINDOW_HEIGHT-sliceSize) {
+							if (currentScreenColumn->hitTexture) {
+								int wallBeginning = sliceSize;
+								int wallEnd = WINDOW_HEIGHT-sliceSize;
+								int wallTotal = wallEnd - wallBeginning;
+								int adjustedCurrentRow = currentRow - wallBeginning;
+								
+								float rowCoorinate = ((float)adjustedCurrentRow/(float)wallTotal);
+								Color textureColor = currentScreenColumn->hitTexture->getRangedTexturePixel(
+									currentScreenColumn->lineCoordinate,
+									rowCoorinate
+								);
+								renderColor = textureColor; //colorAdd(textureColor, renderColor);
+							}
 							renderPixel(pixel, WINDOW_WIDTH-currentColumn, currentRow, renderColor);
 						} else {
 							// Render Floor
@@ -1131,6 +1212,7 @@ void preCalculateStepArray() {
 
 void precalculateLighting() {
 	// Determine Bounds
+	printf("Determine Level Bounds...\n");
 	float minX, minY = 0.0f;
 	float maxX, maxY = 0.0f;
 	for (int lineIndex = 1; lineIndex <= numberOfLines; lineIndex++) {
@@ -1165,18 +1247,19 @@ void precalculateLighting() {
 			if (currentPoint.y > maxY) {
 				maxY = currentPoint.y;
 			}	
-		printf("%d\tX: %f - %f\n\tY: %f - %f\n", lineIndex, minX, maxX, minY, maxY);
+		//printf("%d\tX: %f - %f\n\tY: %f - %f\n", lineIndex, minX, maxX, minY, maxY);
 	}
 	
 	maximumWidth  = (int)(ceil(maxX) - floor(minX));
 	maximumHeight = (int)(ceil(maxY) - floor(minY));
-	printf("%d:%d\n", maximumWidth, maximumHeight);
+	printf("Bounds: %d:%d\n", maximumWidth, maximumHeight);
 	
 	// Allocate Lighting
 	PreCalculatedLighting = (struct Color *)calloc(maximumWidth*maximumHeight, sizeof(struct Color));
 	
 	// Calculate it!
 	Point currentPosition;
+	printf("Calculating Lighting...\n");
 	for (int y = 0; y < maximumHeight; y++) {
 		for (int x = 0; x < maximumWidth; x++) {
 			currentPosition.x = (float)x;
@@ -1184,13 +1267,7 @@ void precalculateLighting() {
 			PreCalculatedLighting[x + y*maximumWidth] = updateColorBasedOnLocation(currentPosition, floorColor);
 		}
 	}
-	//FloorLightArray = (struct Color *)calloc(WINDOW_WIDTH*(WINDOW_HEIGHT_HALF)+1, sizeof(struct Color));
-	
-	
-	// Allocate Light Array
-	
-	// Fill Light Array
-	//updateColorBasedOnLocation(position, intersectedLineObject->color)
+	printf("Finished!\n");
 }
 
 /* --- MAIN ---- */
@@ -1268,6 +1345,10 @@ int WinMain(int argc, char **argv) {
 	cyan.g = 1.0f;
 	cyan.b = 1.0f;
 	
+	// Default Position
+	defaultPosition.x = 0.0f;
+	defaultPosition.y = 0.0f;
+	
 	// Array Init
 	ScreenColumnArray = (struct ScreenColumn *)calloc(WINDOW_WIDTH, sizeof(struct ScreenColumn));
 	RayArray = (struct Ray *)calloc(numberOfRays+1, sizeof(struct Ray));
@@ -1276,6 +1357,7 @@ int WinMain(int argc, char **argv) {
 	FloorLightArray = (struct Color *)calloc(WINDOW_WIDTH*(WINDOW_HEIGHT_HALF)+1, sizeof(struct Color));
 	CeilingLightArray = (struct Color *)calloc(WINDOW_WIDTH*(WINDOW_HEIGHT_HALF)+1, sizeof(struct Color));
 	StepSizeDistanceArray = (float *)calloc(WINDOW_HEIGHT_HALF*WINDOW_WIDTH, sizeof(float));
+	TextureArray = (struct Texture *)calloc(numberOfTextures, sizeof(struct Texture));
 	
 	// Precalc of Steps
 	preCalculateStepArray();
@@ -1291,45 +1373,49 @@ int WinMain(int argc, char **argv) {
 
 	
 	// Scene is loaded here
+	/*	Textures */
+	Texture missingTexture(2,2);
+	missingTexture.setTexturePixel(0,0,black);
+	missingTexture.setTexturePixel(0,1,magenta);
+	missingTexture.setTexturePixel(1,0,magenta);
+	missingTexture.setTexturePixel(1,1,black);
+	TextureArray[1] = missingTexture;
+	
+	/* Geometry */
+	// Surrounding Walls
 	LineArray[1] = *new Line(0	,0	,640*2,0	,1.0, 0.0, 0.0);
 	LineArray[2] = *new Line(640*2,480,640*2,0	,0.0, 1.0, 0.0);
-	LineArray[2].emissive = true;
+	LineArray[2].portalIndex = 4;
 	LineArray[3] = *new Line(0	,480,640*2,480,0.0, 0.0, 1.0);
-	LineArray[4] = *new Line(0 	,480,0	,0	,1.0, 1.0, 1.0);
+	LineArray[4] = *new Line(0 	,0,0	,480	,1.0, 1.0, 1.0);
+	LineArray[4].portalIndex = 2;
 	
 	// House
 	LineArray[5] = *new Line(100,180,400,180,1.0, 1.0, 1.0);
 	LineArray[6] = *new Line(200,180,200,280,1.0, 1.0, 1.0);
 	LineArray[7] = *new Line(200,280,300,280,1.0, 1.0, 1.0);
+	LineArray[7].texturePointer = &TextureArray[1];
 	LineArray[8] = *new Line(400,180,400,480,1.0, 1.0, 1.0);
 	
-	// House
+	// Column
 	LineArray[9] =  *new Line(660,200,680,210,1.0, 1.0, 1.0);
+	LineArray[9].texturePointer = &TextureArray[1];
 	LineArray[10] = *new Line(680,210,690,230,1.0, 1.0, 1.0);
+	LineArray[10].texturePointer = &TextureArray[1];
 	LineArray[11] = *new Line(690,230,680,250,1.0, 1.0, 1.0);
+	LineArray[11].texturePointer = &TextureArray[1];
 	LineArray[12] = *new Line(680,250,660,260,1.0, 1.0, 1.0);
+	LineArray[12].texturePointer = &TextureArray[1];
 	LineArray[13] = *new Line(660,260,640,250,1.0, 1.0, 1.0);
+	LineArray[13].texturePointer = &TextureArray[1];
 	LineArray[14] = *new Line(640,250,630,230,1.0, 1.0, 1.0);
+	LineArray[14].texturePointer = &TextureArray[1];
 	LineArray[15] = *new Line(630,230,640,210,1.0, 1.0, 1.0);
+	LineArray[15].texturePointer = &TextureArray[1];
 	LineArray[16] = *new Line(640,210,660,200,1.0, 1.0, 1.0);
+	LineArray[16].texturePointer = &TextureArray[1];
 	
-	// Lines
-	/*LineArray[1] = *new Line(0					,0					,WINDOW_WIDTH		,0					,0.5, 0.5, 0.5	);
-	LineArray[2] = *new Line(WINDOW_WIDTH		,WINDOW_HEIGHT		,WINDOW_WIDTH		,0					,0.5, 0.5, 0.5	);
-	LineArray[3] = *new Line(WINDOW_WIDTH		,WINDOW_HEIGHT		,0					,WINDOW_HEIGHT		,0.5, 0.5, 0.5	);
-	LineArray[4] = *new Line(0 					,WINDOW_HEIGHT		,0					,0					,0.5, 0.5, 0.5	);
-	
-	// Smaller Room
-	LineArray[5] = *new Line(WINDOW_WIDTH/3		,WINDOW_HEIGHT/3	,WINDOW_WIDTH/9*4	,WINDOW_HEIGHT/3	,1.0, 0.0, 0.0	);
-	LineArray[6] = *new Line(WINDOW_WIDTH/9*5	,WINDOW_HEIGHT/3	,WINDOW_WIDTH/3*2	,WINDOW_HEIGHT/3	,1.0, 1.0, 0.0	);
-	
-	LineArray[7] = *new Line(WINDOW_WIDTH/3*2	,WINDOW_HEIGHT/3*2	,WINDOW_WIDTH/3*2	,WINDOW_HEIGHT/3	,0.0, 1.0, 0.0	);
-	LineArray[8] = *new Line(WINDOW_WIDTH/3*2	,WINDOW_HEIGHT/3*2	,WINDOW_WIDTH/3		,WINDOW_HEIGHT/3*2	,0.0, 0.0, 1.0	);
-	LineArray[9] = *new Line(WINDOW_WIDTH/3		,WINDOW_HEIGHT/3*2	,WINDOW_WIDTH/3		,WINDOW_HEIGHT/3	,1.0, 1.0, 1.0	);
-	*/
 	// Lights
-	//LightArray[1] = *new PointLight(WINDOW_WIDTH-5	, 300,1.0	,1.0	,1.0	,1.0f	,128.0f	);
-	
 	LightArray[1] = *new PointLight(640/2		, 480/2	,1.0	,1.0	,1.0	,1.0f	,512.0f	);
 	LightArray[2] = *new PointLight(640/5		, 480/5	,1.0	,1.0	,1.0	,1.0f	,512.0f	);
 	LightArray[2].dynamic = true;
@@ -1338,46 +1424,8 @@ int WinMain(int argc, char **argv) {
 	LightArray[5] = *new PointLight(760	, 350	,0.0	,0.0	,1.0	,1.0f	,512.0f	);
 	LightArray[6] = *new PointLight(10		, 10	,1.0	,1.0	,1.0	,1.0f	,512.0f	);
 	LightArray[7] = *new PointLight(640*2+32,480/2,1.0	,1.0	,1.0	,1.0f	,512.0f	);
-	//LightArray[3] = *new PointLight(WINDOW_WIDTH/5*4	, WINDOW_HEIGHT/3*2	,1.0	,1.0	,1.0	,1.0f	,512.0f	);
-	/*LightArray[2] = *new PointLight(WINDOW_WIDTH/4*4	, WINDOW_HEIGHT/4,1.0	,1.0	,1.0	,1.0f	,512.0f	);
-	LightArray[3] = *new PointLight(WINDOW_WIDTH/4	, WINDOW_HEIGHT/4*4,1.0	,1.0	,1.0	,1.0f	,512.0f	);
-	LightArray[4] = *new PointLight(WINDOW_WIDTH/4*4	, WINDOW_HEIGHT/4*4,1.0	,1.0	,1.0	,1.0f	,512.0f	);
-	*/
-	/*
-	// Light Position
-	LightArray[1] = *new PointLight(WINDOW_WIDTH/3	,WINDOW_HEIGHT_HALF,1.0	,1.0	,1.0	,1.0f	,128.0f	);
-	LightArray[2] = *new PointLight(WINDOW_WIDTH/3*2,20.0f			,1.0	,1.0	,1.0	,2.0f	,512.0f	);
 	
-	//RayArray[1] = *new Ray(WINDOW_WIDTH/10,0,45);
-	LineArray[1] = *new Line(0				,WINDOW_HEIGHT-200	,80				, WINDOW_HEIGHT_HALF	,1.0, 0, 0	);
-	LineArray[2] = *new Line(80				,WINDOW_HEIGHT_HALF	,150			, WINDOW_HEIGHT-30	,1.0,1.0,0	);
-	LineArray[3] = *new Line(150			,WINDOW_HEIGHT-30	,WINDOW_WIDTH_HALF	, WINDOW_HEIGHT-100	,0	,1.0,0	);
-	LineArray[4] = *new Line(WINDOW_WIDTH_HALF	,WINDOW_HEIGHT-100	,300			, WINDOW_HEIGHT-200	,0	,1.0,1.0);
-	LineArray[5] = *new Line(300			,WINDOW_HEIGHT-200	,WINDOW_WIDTH	, WINDOW_HEIGHT		,0	,0	,1.0);
-	
-	Point corner1;
-	corner1.x = WINDOW_WIDTH/3;
-	corner1.y = 160;
-	Point corner2;
-	corner2.x = WINDOW_WIDTH/3+80;
-	corner2.y = 180;
-	Point corner3;
-	corner3.x = WINDOW_WIDTH/4;
-	corner3.y = 300;
-	Point corner4;
-	corner4.x = WINDOW_WIDTH/3+70;
-	corner4.y = 100;
-	
-	Color segment1;
-	segment1.r = 1.0;
-	segment1.g = 0;
-	segment1.b = 1.0;
-	
-	LineArray[6] = *new Line(corner1,corner3,segment1);
-	LineArray[7] = *new Line(corner2,corner3,segment1);
-	LineArray[8] = *new Line(corner2,corner4,segment1);
-	*/
-	
+	// Precalculate Level Lighting
 	precalculateLighting();
 	
 	// Threadpools
