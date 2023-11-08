@@ -960,7 +960,16 @@ class Ray {
 				// Get distance to camera
 				ScreenColumnArray[currentColumn].amountOfRaySteps = stepCount;
 				// Get texture of hit line
-				ScreenColumnArray[currentColumn].hitTexture = intersectedLineObject->texturePointer;
+                // Check if a texture is present
+                if (intersectedLineObject->texturePointer) {
+                    // If you find one, good on you
+				    ScreenColumnArray[currentColumn].hitTexture = intersectedLineObject->texturePointer;
+                } else {
+                    // If you don't, that sucks!                    
+				    ScreenColumnArray[currentColumn].hitTexture = &missingTexture;
+				    intersectedLineObject->emissive = true;
+				    intersectedLineObject->color = white;
+                }
 				
 				// Light Distance Shading
 				if (intersectedLineObject->emissive) {
@@ -1000,6 +1009,7 @@ class Ray {
 void traceColumn(Ray& currentRay) {
 	// Send ray out from viewport
 	// TODO: Really hacky, could probably get a rework, but eh, whatever
+    /*
 	float nearClipPlaneDistance = 0.0f;
 	float nearClipPlaneWidth = fieldOfView/2.0f;
 	float centeredRay = (((float)currentRay.currentColumn/(float)WINDOW_WIDTH)-0.5f) * nearClipPlaneWidth;
@@ -1012,10 +1022,12 @@ void traceColumn(Ray& currentRay) {
 	// This *kinda* works??
 	nearClipPlanePosition.x += nearClipPlaneHypotenuse*cos(degreeToRadian(cameraRotation));
 	nearClipPlanePosition.y += nearClipPlaneHypotenuse*sin(degreeToRadian(cameraRotation))*-1;
+    */
 	
 	// Send out a Ray from the camera
-	currentRay.position = nearClipPlanePosition;
+	currentRay.position = cameraPosition;
 	// This is where the FoV magically appears!
+    // TODO: Get this from the precalculated ray step positions
 	currentRay.direction = cameraRotation+(((((float)currentRay.currentColumn)/((float)WINDOW_WIDTH))-0.5f)*fieldOfView); // (cameraRotation + ((fieldOfView/2)*-1)) + (fieldOfView/WINDOW_WIDTH*currentRay.currentColumn);
 
 	currentRay.setInitialRayStepSize(initialRayStepSize);
