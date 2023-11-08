@@ -1330,7 +1330,7 @@ Texture importNetpbm(string path) {
 					if (currentByte==0x20) {
 						stateCounter++;
 					} else {
-						fscanf(filePointer, "%d", &width);
+						currentByte= fscanf(filePointer, "%d", &width);
 						currentByte = fgetc(filePointer);
 					}
 					break;
@@ -1339,7 +1339,7 @@ Texture importNetpbm(string path) {
 						stateCounter++;
 						currentByte = fgetc(filePointer);
 					} else {
-						fscanf(filePointer, "%d", &height);
+						currentByte = fscanf(filePointer, "%d", &height);
 						currentByte = fgetc(filePointer);
 					}
 					break;
@@ -1349,7 +1349,7 @@ Texture importNetpbm(string path) {
 					} else {
 						// A bit of a hack to avoid losing the first character
 						fseek(filePointer, -1, SEEK_CUR);
-						fscanf(filePointer, "%d", &bitdepth);
+						currentByte  = fscanf(filePointer, "%d", &bitdepth);
 						currentByte = fgetc(filePointer);
 					}
 					break;
