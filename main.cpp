@@ -16,8 +16,8 @@ using std::to_string;
         } \
     } while(0)
 
-int WINDOW_WIDTH 		= 1280;
-int WINDOW_HEIGHT 		= 720;
+int WINDOW_WIDTH 		= 640;
+int WINDOW_HEIGHT 		= 480;
 int WINDOW_WIDTH_HALF 	= WINDOW_WIDTH/2;
 int WINDOW_HEIGHT_HALF 	= WINDOW_HEIGHT/2;
 #define PI 3.1415926535897932384626433832795028841971693993751058209749445923078164062
@@ -1211,7 +1211,9 @@ void updateScreen() {
 
 // Used to precalculate the distance between ray steps
 void preCalculateStepArray() {
+	printf("PreCalculating Steps...\n");
 	for (int initStepColumn = 0 ; initStepColumn < WINDOW_WIDTH; initStepColumn++) {
+		printf("Column: %d/%d\n", initStepColumn, WINDOW_WIDTH);
 		for (int initStepCount = 0; initStepCount < WINDOW_HEIGHT_HALF; initStepCount++) {		
 			StepSizeDistanceArray[initStepCount + initStepColumn*WINDOW_HEIGHT_HALF] = 
 				(int)(((float)initStepCount/(float)(WINDOW_HEIGHT_HALF)) * horizonDistance);
@@ -1309,6 +1311,7 @@ Texture importNetpbm(string path) {
 		unsigned char currentByte;
 		short int stateCounter = 0;
 		int width, height, bitdepth;
+		printf("Loading Texture from File: %s\n", path.c_str());
 		/*
 			0: Reading Filetype
 			1: Reading Width
@@ -1319,6 +1322,7 @@ Texture importNetpbm(string path) {
 			6: Finished
 		*/
 		while (stateCounter < 6) {
+			printf("%d\n", stateCounter);
 			switch(stateCounter) {
 				case 0: // 0: Reading Filetype
 					currentByte = fgetc(filePointer);
@@ -1330,16 +1334,15 @@ Texture importNetpbm(string path) {
 					if (currentByte==0x20) {
 						stateCounter++;
 					} else {
-						currentByte= fscanf(filePointer, "%d", &width);
+						fscanf(filePointer, "%d", &width);
 						currentByte = fgetc(filePointer);
 					}
 					break;
 				case 2: // 1: Reading Height
 					if (currentByte==0x0A) {
 						stateCounter++;
-						currentByte = fgetc(filePointer);
 					} else {
-						currentByte = fscanf(filePointer, "%d", &height);
+						fscanf(filePointer, "%d", &height);
 						currentByte = fgetc(filePointer);
 					}
 					break;
@@ -1349,7 +1352,7 @@ Texture importNetpbm(string path) {
 					} else {
 						// A bit of a hack to avoid losing the first character
 						fseek(filePointer, -1, SEEK_CUR);
-						currentByte  = fscanf(filePointer, "%d", &bitdepth);
+						fscanf(filePointer, "%d", &bitdepth);
 						currentByte = fgetc(filePointer);
 					}
 					break;
