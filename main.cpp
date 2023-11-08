@@ -408,6 +408,10 @@ class Line {
 		Point p2;
 		Color color;
 		bool emissive = false;
+        /*
+            TODO: Add texture scale and offset!
+                  We REALLY don't need hacky shit in the Texture Object!
+        */
 		Texture* texturePointer;
 		// If > 0, it's a portal
 		int portalIndex = 0;
