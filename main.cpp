@@ -315,6 +315,7 @@ struct ScreenColumn {
 	int amountOfRaySteps;
 	float lineCoordinate;
 	struct Texture *hitTexture;
+	struct Line *hitLine;
 };
 typedef struct ScreenColumn ScreenColumn;
 
@@ -365,42 +366,6 @@ class PointLight {
 	}
 };
 
-// A 2D Image to be projected onto a line, floor or ceiling
-class Texture {
-	public:
-		int width, height;
-		int numberOfVerticalRepeats = 1;
-		int numberOfHorizontalRepeats = 1;
-		Color *TextureData;
-		Texture(int _width, int _height) {
-			width = _width;
-			height = _height;
-			TextureData = (struct Color *)calloc(width*height, sizeof(struct Color));
-		}
-		
-		void setTexturePixel(int xPixel, int yPixel, float r, float g, float b) {
-			Color color;
-			color.r = r;
-			color.g = g;
-			color.b = b;
-			TextureData[xPixel + yPixel*width] = color;
-		}
-		
-		void setTexturePixel(int xPixel, int yPixel, Color _color) {
-			TextureData[xPixel + yPixel*width] = _color;
-		}
-		
-		Color getRangedTexturePixel(float xRange, float yRange) {
-			// xRange and yRange come in from 0.0f to 1.0f
-			xRange*=(float)numberOfHorizontalRepeats;
-			yRange*=(float)numberOfVerticalRepeats;
-			
-			int xPixel = abs((int)((float)width *xRange))%width;
-			int yPixel = abs((int)((float)height*yRange))%height;
-			return TextureData[xPixel + yPixel*width];
-		}
-};
-
 // A simple line or wall
 class Line {
 	public:
@@ -408,11 +373,10 @@ class Line {
 		Point p2;
 		Color color;
 		bool emissive = false;
-        /*
-            TODO: Add texture scale and offset!
-                  We REALLY don't need hacky shit in the Texture Object!
-        */
 		Texture* texturePointer;
+		float textureScale = 1.0f;
+		float textureOffsetHorizontal = 0.0f;
+		float textureOffsetVertical = 0.0f;
 		// If > 0, it's a portal
 		int portalIndex = 0;
 		
@@ -446,6 +410,46 @@ class Line {
 			p1 = _p1;
 			p2 = _p2;
 			color = _color;
+		}
+};
+
+// A 2D Image to be projected onto a line, floor or ceiling
+class Texture {
+	public:
+		int width, height;
+		Color *TextureData;
+		Texture(int _width, int _height) {
+			width = _width;
+			height = _height;
+			TextureData = (struct Color *)calloc(width*height, sizeof(struct Color));
+		}
+		
+		void setTexturePixel(int xPixel, int yPixel, float r, float g, float b) {
+			Color color;
+			color.r = r;
+			color.g = g;
+			color.b = b;
+			TextureData[xPixel + yPixel*width] = color;
+		}
+		
+		void setTexturePixel(int xPixel, int yPixel, Color _color) {
+			TextureData[xPixel + yPixel*width] = _color;
+		}
+		
+		Color getRangedTexturePixel(float xRange, float yRange, Line* line) {
+			float f_Width = (float)width;
+			float f_Height = (float)height;
+			// xRange and yRange come in from 0.0f to 1.0f
+			if (line && width && height) {
+				float xModifiedPos = f_Width  * (xRange * line->textureScale);
+				float yModifiedPos = f_Height * (yRange * line->textureScale);
+				
+				int xPixel = abs(((int)(xModifiedPos + line->textureOffsetHorizontal)))%width;
+				int yPixel = abs(((int)(yModifiedPos + line->textureOffsetVertical  )))%height;
+				return TextureData[xPixel + yPixel*width];
+			} else {
+				return magenta;
+			}
 		}
 };
 
@@ -515,7 +519,7 @@ float cameraSpeedVertical = 0.0f;
 float cameraSpeedRotational = 0.0f;
 
 // We need missing texture here :v
-Texture missingTexture(2,2);
+Texture* missingTexture = nullptr;
 
 /* ---- HELPER FUNCTIONS ---- */
 // If returns 0, no intersection has been found
@@ -766,6 +770,12 @@ void updateInputs() {
 		}
 	
 		LightArray[2].position.x+=lightMotion;
+		
+		LineArray[2].textureOffsetVertical-= 0.50f;
+		LineArray[2].textureOffsetHorizontal+= 0.05f;
+		
+		
+		
 		previousPosition = cameraPosition;
 	}
 }
@@ -921,6 +931,7 @@ class Ray {
 			
 			// Draws those cool light columns
 			// Iterate through all the lights in the scene
+			/*
 			for (int currentLightIndex = 1; currentLightIndex <= numberOfLights; currentLightIndex++) {
 				PointLight currentLightObject = LightArray[currentLightIndex];
 				// Draw a Cylinder with a 5 Unit radius
@@ -930,10 +941,14 @@ class Ray {
 					ScreenColumnArray[currentColumn].color.r = (currentLightObject.color.r);
 					ScreenColumnArray[currentColumn].color.g = (currentLightObject.color.g);
 					ScreenColumnArray[currentColumn].color.b = (currentLightObject.color.b);
-					ScreenColumnArray[currentColumn].amountOfRaySteps = stepCount;
+					ScreenColumnArray[currentColumn].amountOfRaySteps = stepCount;        
+				    // idk why this crashes it :p
+					// probably because it's missing a line to map the texture to!
+					//ScreenColumnArray[currentColumn].hitTexture = &missingTexture;
 					return 1;
 				}
 			}
+			*/			
 			
 			/* ---- Check if a Line has been hit ---- */
 			int intersectedLineIndex = checkIfAnyLinesIntersect(previousPosition,position);
@@ -961,6 +976,8 @@ class Ray {
 					position = previousPosition;
 				}
 				
+				// Get Line Pointer
+				ScreenColumnArray[currentColumn].hitLine = intersectedLineObject;				
 				// Get distance to camera
 				ScreenColumnArray[currentColumn].amountOfRaySteps = stepCount;
 				// Get texture of hit line
@@ -970,7 +987,7 @@ class Ray {
 				    ScreenColumnArray[currentColumn].hitTexture = intersectedLineObject->texturePointer;
                 } else {
                     // If you don't, that sucks!                    
-				    ScreenColumnArray[currentColumn].hitTexture = &missingTexture;
+				    ScreenColumnArray[currentColumn].hitTexture = missingTexture;
 				    intersectedLineObject->emissive = true;
 				    intersectedLineObject->color = white;
                 }
@@ -1013,7 +1030,6 @@ class Ray {
 void traceColumn(Ray& currentRay) {
 	// Send ray out from viewport
 	// TODO: Really hacky, could probably get a rework, but eh, whatever
-    /*
 	float nearClipPlaneDistance = 0.0f;
 	float nearClipPlaneWidth = fieldOfView/2.0f;
 	float centeredRay = (((float)currentRay.currentColumn/(float)WINDOW_WIDTH)-0.5f) * nearClipPlaneWidth;
@@ -1026,10 +1042,9 @@ void traceColumn(Ray& currentRay) {
 	// This *kinda* works??
 	nearClipPlanePosition.x += nearClipPlaneHypotenuse*cos(degreeToRadian(cameraRotation));
 	nearClipPlanePosition.y += nearClipPlaneHypotenuse*sin(degreeToRadian(cameraRotation))*-1;
-    */
 	
 	// Send out a Ray from the camera
-	currentRay.position = cameraPosition;
+	currentRay.position = nearClipPlanePosition;
 	// This is where the FoV magically appears!
     // TODO: Get this from the precalculated ray step positions
 	currentRay.direction = cameraRotation+(((((float)currentRay.currentColumn)/((float)WINDOW_WIDTH))-0.5f)*fieldOfView); // (cameraRotation + ((fieldOfView/2)*-1)) + (fieldOfView/WINDOW_WIDTH*currentRay.currentColumn);
@@ -1214,7 +1229,7 @@ void updateScreen() {
 void preCalculateStepArray() {
 	printf("PreCalculating Steps...\n");
 	for (int initStepColumn = 0 ; initStepColumn < WINDOW_WIDTH; initStepColumn++) {
-		printf("Column: %d/%d\n", initStepColumn, WINDOW_WIDTH);
+		//printf("Column: %d/%d\n", initStepColumn, WINDOW_WIDTH);
 		for (int initStepCount = 0; initStepCount < WINDOW_HEIGHT_HALF; initStepCount++) {		
 			StepSizeDistanceArray[initStepCount + initStepColumn*WINDOW_HEIGHT_HALF] = 
 				(int)(((float)initStepCount/(float)(WINDOW_HEIGHT_HALF)) * horizonDistance);
@@ -1305,7 +1320,7 @@ Texture importNetpbm(string path) {
 	filePointer = fopen(path.c_str(),"rb");
 	if (filePointer == NULL) {
 		printf("Missing Texture! No file at %s\n", path.c_str());
-		return missingTexture;
+		return *missingTexture;
 	} else {
 		// Read in image info
 		Texture *newTexture;
@@ -1323,7 +1338,7 @@ Texture importNetpbm(string path) {
 			6: Finished
 		*/
 		while (stateCounter < 6) {
-			printf("%d\n", stateCounter);
+			printf("%d: %c\n", stateCounter, currentByte);
 			switch(stateCounter) {
 				case 0: // 0: Reading Filetype
 					currentByte = fgetc(filePointer);
@@ -1342,6 +1357,7 @@ Texture importNetpbm(string path) {
 				case 2: // 1: Reading Height
 					if (currentByte==0x0A) {
 						stateCounter++;
+						currentByte = fgetc(filePointer);
 					} else {
 						fscanf(filePointer, "%d", &height);
 						currentByte = fgetc(filePointer);
@@ -1387,7 +1403,7 @@ Texture importNetpbm(string path) {
 // Ye olden Main function
 #ifdef __linux__ // Check for Linux
 // Code specific to Linux
-int main() {
+int main(int argc, char **argv) {
 #elif defined(_WIN32) || defined(_WIN64) // Check for Windows
 // Code specific to Windows
 int WinMain(int argc, char **argv) {
@@ -1491,21 +1507,27 @@ int WinMain(int argc, char **argv) {
 	}
 
 	
-	// Scene is loaded here
 	/*	Textures */
-	missingTexture.setTexturePixel(0,0,black);
-	missingTexture.setTexturePixel(0,1,magenta);
-	missingTexture.setTexturePixel(1,0,magenta);
-	missingTexture.setTexturePixel(1,1,black);
-	TextureArray[1] = missingTexture;
+	// Create Missing Texture
+	missingTexture = new Texture(2,2);
+	missingTexture->setTexturePixel(0,0,black);
+	missingTexture->setTexturePixel(0,1,magenta);
+	missingTexture->setTexturePixel(1,0,magenta);
+	missingTexture->setTexturePixel(1,1,black);
+	TextureArray[0] = *missingTexture;
+	TextureArray[1] = importNetpbm("./textures/brick.ppm");
+	TextureArray[2] = importNetpbm("./textures/mossy_brick.ppm");
+	TextureArray[3] = importNetpbm("./textures/water.ppm");
 	
-	TextureArray[2] = importNetpbm("./textures/brick.ppm");
+	// Scene is loaded here
 	
 	/* Geometry */
 	// Surrounding Walls
 	LineArray[1] = *new Line(0	,0	,640*2,0	,1.0, 0.0, 0.0);
-	LineArray[2] = *new Line(640*2,480,640*2,0	,0.0, 1.0, 0.0);
+	LineArray[2] = *new Line(640*2,480,640*2,0	,1.0, 1.0, 1.0);
 	LineArray[2].emissive = true;
+	LineArray[2].texturePointer = &TextureArray[3];
+	LineArray[2].textureScale = 4.0f;
 	//LineArray[2].portalIndex = 4;
 	LineArray[3] = *new Line(0	,480,640*2,480,0.0, 0.0, 1.0);
 	LineArray[4] = *new Line(0 	,0,0	,480	,1.0, 1.0, 1.0);
@@ -1513,31 +1535,32 @@ int WinMain(int argc, char **argv) {
 	
 	// House
 	LineArray[5] = *new Line(100,180,400,180,1.0, 1.0, 1.0);
-	LineArray[5].texturePointer = &TextureArray[2];
+	LineArray[5].texturePointer = &TextureArray[1];
+	LineArray[5].textureScale = 2.0f;
+	
 	LineArray[6] = *new Line(200,180,200,280,1.0, 1.0, 1.0);
 	LineArray[6].texturePointer = &TextureArray[2];
+	LineArray[6].textureScale = 2.0f;
+	
 	LineArray[7] = *new Line(200,280,300,280,1.0, 1.0, 1.0);
-	LineArray[7].texturePointer = &TextureArray[2];
+	LineArray[7].texturePointer = &TextureArray[1];
+	LineArray[7].textureScale = 2.0f;
+	
 	LineArray[8] = *new Line(400,180,400,480,1.0, 1.0, 1.0);
-	LineArray[8].texturePointer = &TextureArray[2];
+	LineArray[8].texturePointer = &TextureArray[1];
+	LineArray[8].textureScale = 2.0f;
 	
 	// Column
+	/*
 	LineArray[9] =  *new Line(660,200,680,210,1.0, 1.0, 1.0);
-	LineArray[9].texturePointer = &TextureArray[1];
 	LineArray[10] = *new Line(680,210,690,230,1.0, 1.0, 1.0);
-	LineArray[10].texturePointer = &TextureArray[1];
 	LineArray[11] = *new Line(690,230,680,250,1.0, 1.0, 1.0);
-	LineArray[11].texturePointer = &TextureArray[1];
 	LineArray[12] = *new Line(680,250,660,260,1.0, 1.0, 1.0);
-	LineArray[12].texturePointer = &TextureArray[1];
 	LineArray[13] = *new Line(660,260,640,250,1.0, 1.0, 1.0);
-	LineArray[13].texturePointer = &TextureArray[1];
 	LineArray[14] = *new Line(640,250,630,230,1.0, 1.0, 1.0);
-	LineArray[14].texturePointer = &TextureArray[1];
 	LineArray[15] = *new Line(630,230,640,210,1.0, 1.0, 1.0);
-	LineArray[15].texturePointer = &TextureArray[1];
 	LineArray[16] = *new Line(640,210,660,200,1.0, 1.0, 1.0);
-	LineArray[16].texturePointer = &TextureArray[1];
+	*/
 	
 	// Lights
 	LightArray[1] = *new PointLight(640/2		, 480/2	,1.0	,1.0	,1.0	,1.0f	,512.0f	);
