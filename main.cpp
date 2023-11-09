@@ -418,6 +418,12 @@ class Texture {
 	public:
 		int width, height;
 		Color *TextureData;
+		Texture() {
+			width = 2;
+			height = 2;
+			TextureData = (struct Color *)calloc(width*height, sizeof(struct Color));
+		}
+			
 		Texture(int _width, int _height) {
 			width = _width;
 			height = _height;
@@ -437,19 +443,19 @@ class Texture {
 		}
 		
 		Color getRangedTexturePixel(float xRange, float yRange, Line* line) {
-			float f_Width = (float)width;
-			float f_Height = (float)height;
+			int xModifiedPos = width;
+			//printf("%f,%f\n", (float)width, (float)height);
+			
+			/*
 			// xRange and yRange come in from 0.0f to 1.0f
-			if (line && width && height) {
-				float xModifiedPos = f_Width  * (xRange * line->textureScale);
-				float yModifiedPos = f_Height * (yRange * line->textureScale);
-				
-				int xPixel = abs(((int)(xModifiedPos + line->textureOffsetHorizontal)))%width;
-				int yPixel = abs(((int)(yModifiedPos + line->textureOffsetVertical  )))%height;
-				return TextureData[xPixel + yPixel*width];
-			} else {
-				return magenta;
-			}
+			float xModifiedPos = f_Width  * (xRange * line->textureScale);
+			float yModifiedPos = f_Height * (yRange * line->textureScale);
+			
+			int xPixel = abs(((int)(xModifiedPos + line->textureOffsetHorizontal)))%width;
+			int yPixel = abs(((int)(yModifiedPos + line->textureOffsetVertical  )))%height;
+			return TextureData[xPixel + yPixel*width];
+			*/
+			return magenta;
 		}
 };
 
@@ -1338,7 +1344,7 @@ Texture importNetpbm(string path) {
 			6: Finished
 		*/
 		while (stateCounter < 6) {
-			printf("%d: %c\n", stateCounter, currentByte);
+			//printf("%d: %c\n", stateCounter, currentByte);
 			switch(stateCounter) {
 				case 0: // 0: Reading Filetype
 					currentByte = fgetc(filePointer);
@@ -1408,6 +1414,7 @@ int main(int argc, char **argv) {
 // Code specific to Windows
 int WinMain(int argc, char **argv) {
 #endif
+
 	printf("Hello, World!\n");
 	//srand(time(NULL)); 
 	
@@ -1484,6 +1491,19 @@ int WinMain(int argc, char **argv) {
 	defaultPosition.x = 0.0f;
 	defaultPosition.y = 0.0f;
 	
+	/*	Textures */
+	// Create Missing Texture
+	missingTexture = new Texture(2,2);
+	missingTexture->setTexturePixel(0,0,black);
+	missingTexture->setTexturePixel(0,1,magenta);
+	missingTexture->setTexturePixel(1,0,magenta);
+	missingTexture->setTexturePixel(1,1,black);
+	TextureArray[0] = *missingTexture;
+	TextureArray[1] = importNetpbm("./textures/brick.ppm");
+	TextureArray[2] = importNetpbm("./textures/mossy_brick.ppm");
+	TextureArray[3] = importNetpbm("./textures/water.ppm");
+	printf("Missing Texture Created!\n");
+	
 	// Array Init
 	ScreenColumnArray = (struct ScreenColumn *)calloc(WINDOW_WIDTH, sizeof(struct ScreenColumn));
 	RayArray = (struct Ray *)calloc(numberOfRays+1, sizeof(struct Ray));
@@ -1505,19 +1525,6 @@ int WinMain(int argc, char **argv) {
 		RayArray[i] = *new Ray();
 		RayArray[i].currentColumn = i-1;
 	}
-
-	
-	/*	Textures */
-	// Create Missing Texture
-	missingTexture = new Texture(2,2);
-	missingTexture->setTexturePixel(0,0,black);
-	missingTexture->setTexturePixel(0,1,magenta);
-	missingTexture->setTexturePixel(1,0,magenta);
-	missingTexture->setTexturePixel(1,1,black);
-	TextureArray[0] = *missingTexture;
-	TextureArray[1] = importNetpbm("./textures/brick.ppm");
-	TextureArray[2] = importNetpbm("./textures/mossy_brick.ppm");
-	TextureArray[3] = importNetpbm("./textures/water.ppm");
 	
 	// Scene is loaded here
 	
