@@ -2,8 +2,10 @@
 #include <SDL2/SDL.h>
 #include <thread>
 #include <vector>
+#include <string>
 
-using namespace std;
+using std::string;
+using std::to_string;
 
 // Utility macros
 #define CHECK_ERROR(test, message) \
@@ -14,8 +16,8 @@ using namespace std;
         } \
     } while(0)
 
-int WINDOW_WIDTH 		= 1280;
-int WINDOW_HEIGHT 		= 720;
+int WINDOW_WIDTH 		= 640;
+int WINDOW_HEIGHT 		= 480;
 int WINDOW_WIDTH_HALF 	= WINDOW_WIDTH/2;
 int WINDOW_HEIGHT_HALF 	= WINDOW_HEIGHT/2;
 #define PI 3.1415926535897932384626433832795028841971693993751058209749445923078164062
@@ -313,7 +315,6 @@ struct ScreenColumn {
 	int amountOfRaySteps;
 	float lineCoordinate;
 	struct Texture *hitTexture;
-	struct Line *hitLine;
 };
 typedef struct ScreenColumn ScreenColumn;
 
@@ -364,6 +365,42 @@ class PointLight {
 	}
 };
 
+// A 2D Image to be projected onto a line, floor or ceiling
+class Texture {
+	public:
+		int width, height;
+		int numberOfVerticalRepeats = 1;
+		int numberOfHorizontalRepeats = 1;
+		Color *TextureData;
+		Texture(int _width, int _height) {
+			width = _width;
+			height = _height;
+			TextureData = (struct Color *)calloc(width*height, sizeof(struct Color));
+		}
+		
+		void setTexturePixel(int xPixel, int yPixel, float r, float g, float b) {
+			Color color;
+			color.r = r;
+			color.g = g;
+			color.b = b;
+			TextureData[xPixel + yPixel*width] = color;
+		}
+		
+		void setTexturePixel(int xPixel, int yPixel, Color _color) {
+			TextureData[xPixel + yPixel*width] = _color;
+		}
+		
+		Color getRangedTexturePixel(float xRange, float yRange) {
+			// xRange and yRange come in from 0.0f to 1.0f
+			xRange*=(float)numberOfHorizontalRepeats;
+			yRange*=(float)numberOfVerticalRepeats;
+			
+			int xPixel = abs((int)((float)width *xRange))%width;
+			int yPixel = abs((int)((float)height*yRange))%height;
+			return TextureData[xPixel + yPixel*width];
+		}
+};
+
 // A simple line or wall
 class Line {
 	public:
@@ -371,10 +408,11 @@ class Line {
 		Point p2;
 		Color color;
 		bool emissive = false;
-		struct Texture* texturePointer;
-		float textureScale = 1.0f;
-		float textureVerticalOffset = 0.0f;
-		float textureHorizontalOffset = 0.0f;
+        /*
+            TODO: Add texture scale and offset!
+                  We REALLY don't need hacky shit in the Texture Object!
+        */
+		Texture* texturePointer;
 		// If > 0, it's a portal
 		int portalIndex = 0;
 		
@@ -408,40 +446,6 @@ class Line {
 			p1 = _p1;
 			p2 = _p2;
 			color = _color;
-		}
-};
-
-// A 2D Image to be projected onto a line, floor or ceiling
-class Texture {
-	public:
-		int width, height;
-		Color *TextureData;
-		Texture(int _width, int _height) {
-			width = _width;
-			height = _height;
-			TextureData = (struct Color *)calloc(width*height, sizeof(struct Color));
-		}
-		
-		void setTexturePixel(int xPixel, int yPixel, float r, float g, float b) {
-			Color color;
-			color.r = r;
-			color.g = g;
-			color.b = b;
-			TextureData[xPixel + yPixel*width] = color;
-		}
-		
-		void setTexturePixel(int xPixel, int yPixel, Color _color) {
-			TextureData[xPixel + yPixel*width] = _color;
-		}
-		
-		Color getRangedTexturePixel(float xRange, float yRange, Line* line) {
-			// xRange and yRange come in from 0.0f to 1.0f
-			xRange*=(float)line->textureScale;
-			yRange*=(float)line->textureScale;
-			
-			int xPixel = abs((int)(((float)width *xRange) + line->textureHorizontalOffset))%width;
-			int yPixel = abs((int)(((float)height*yRange) +  line->textureVerticalOffset))%height;
-			return TextureData[xPixel + yPixel*width];
 		}
 };
 
@@ -488,8 +492,8 @@ int lastFrameTime = 0;
 int numberOfLines = 20;
 int numberOfLights = 10;
 int numberOfBounces = 0;
-int numberOfRenderSectors = 16;
 int numberOfTextures = 10;
+int numberOfRenderSectors = 1;
 int numberOfRays = numberOfRenderSectors;
 // Max Room size;
 int maximumWidth;
@@ -957,12 +961,19 @@ class Ray {
 					position = previousPosition;
 				}
 				
-				// Get the hit line
-				ScreenColumnArray[currentColumn].hitLine = intersectedLineObject;
 				// Get distance to camera
 				ScreenColumnArray[currentColumn].amountOfRaySteps = stepCount;
 				// Get texture of hit line
-				ScreenColumnArray[currentColumn].hitTexture = intersectedLineObject->texturePointer;
+                // Check if a texture is present
+                if (intersectedLineObject->texturePointer) {
+                    // If you find one, good on you
+				    ScreenColumnArray[currentColumn].hitTexture = intersectedLineObject->texturePointer;
+                } else {
+                    // If you don't, that sucks!                    
+				    ScreenColumnArray[currentColumn].hitTexture = &missingTexture;
+				    intersectedLineObject->emissive = true;
+				    intersectedLineObject->color = white;
+                }
 				
 				// Light Distance Shading
 				if (intersectedLineObject->emissive) {
@@ -1002,6 +1013,7 @@ class Ray {
 void traceColumn(Ray& currentRay) {
 	// Send ray out from viewport
 	// TODO: Really hacky, could probably get a rework, but eh, whatever
+    /*
 	float nearClipPlaneDistance = 0.0f;
 	float nearClipPlaneWidth = fieldOfView/2.0f;
 	float centeredRay = (((float)currentRay.currentColumn/(float)WINDOW_WIDTH)-0.5f) * nearClipPlaneWidth;
@@ -1014,10 +1026,12 @@ void traceColumn(Ray& currentRay) {
 	// This *kinda* works??
 	nearClipPlanePosition.x += nearClipPlaneHypotenuse*cos(degreeToRadian(cameraRotation));
 	nearClipPlanePosition.y += nearClipPlaneHypotenuse*sin(degreeToRadian(cameraRotation))*-1;
+    */
 	
 	// Send out a Ray from the camera
-	currentRay.position = nearClipPlanePosition;
+	currentRay.position = cameraPosition;
 	// This is where the FoV magically appears!
+    // TODO: Get this from the precalculated ray step positions
 	currentRay.direction = cameraRotation+(((((float)currentRay.currentColumn)/((float)WINDOW_WIDTH))-0.5f)*fieldOfView); // (cameraRotation + ((fieldOfView/2)*-1)) + (fieldOfView/WINDOW_WIDTH*currentRay.currentColumn);
 
 	currentRay.setInitialRayStepSize(initialRayStepSize);
@@ -1198,7 +1212,9 @@ void updateScreen() {
 
 // Used to precalculate the distance between ray steps
 void preCalculateStepArray() {
+	printf("PreCalculating Steps...\n");
 	for (int initStepColumn = 0 ; initStepColumn < WINDOW_WIDTH; initStepColumn++) {
+		printf("Column: %d/%d\n", initStepColumn, WINDOW_WIDTH);
 		for (int initStepCount = 0; initStepCount < WINDOW_HEIGHT_HALF; initStepCount++) {		
 			StepSizeDistanceArray[initStepCount + initStepColumn*WINDOW_HEIGHT_HALF] = 
 				(int)(((float)initStepCount/(float)(WINDOW_HEIGHT_HALF)) * horizonDistance);
@@ -1296,6 +1312,7 @@ Texture importNetpbm(string path) {
 		unsigned char currentByte;
 		short int stateCounter = 0;
 		int width, height, bitdepth;
+		printf("Loading Texture from File: %s\n", path.c_str());
 		/*
 			0: Reading Filetype
 			1: Reading Width
@@ -1306,6 +1323,7 @@ Texture importNetpbm(string path) {
 			6: Finished
 		*/
 		while (stateCounter < 6) {
+			printf("%d\n", stateCounter);
 			switch(stateCounter) {
 				case 0: // 0: Reading Filetype
 					currentByte = fgetc(filePointer);
@@ -1324,7 +1342,6 @@ Texture importNetpbm(string path) {
 				case 2: // 1: Reading Height
 					if (currentByte==0x0A) {
 						stateCounter++;
-						currentByte = fgetc(filePointer);
 					} else {
 						fscanf(filePointer, "%d", &height);
 						currentByte = fgetc(filePointer);
@@ -1368,7 +1385,13 @@ Texture importNetpbm(string path) {
 
 /* --- MAIN ---- */
 // Ye olden Main function
+#ifdef __linux__ // Check for Linux
+// Code specific to Linux
+int main() {
+#elif defined(_WIN32) || defined(_WIN64) // Check for Windows
+// Code specific to Windows
 int WinMain(int argc, char **argv) {
+#endif
 	printf("Hello, World!\n");
 	//srand(time(NULL)); 
 	
