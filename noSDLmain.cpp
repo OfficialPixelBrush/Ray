@@ -1,5 +1,4 @@
 #include <math.h>
-#include <SDL2/SDL.h>
 #include <thread>
 #include <vector>
 #include <string>
@@ -486,10 +485,12 @@ class Segment {
 };
 
 /* -- SDL Pointers --*/
+/*
 SDL_Event event;
 SDL_Renderer *renderer;
 SDL_Window *window;
 SDL_Texture *texture;
+*/
 void *texture_pixels;
 int texture_pitch;
 
@@ -664,77 +665,10 @@ float getTextureColumnAlongLine(Point hitPosition, Line line) {
 	return columnOnLine;
 }
 
-/* ---- INPUT HANDLING ---- */
-void PrintKeyInfo( SDL_KeyboardEvent *key ){
-	/* Is it a release or a press? */
-	if( key->type == SDL_KEYUP )
-		printf( "Release:- " );
-	else
-		printf( "Press:- " );
-
-	/* Print the hardware scancode first */
-	printf( "Scancode: 0x%02X", key->keysym.scancode );
-	/* Print the name of the key */
-	printf( ", Name: %s", SDL_GetKeyName( key->keysym.sym ) );
-	printf( "\n" );
-}
-
 int processControls() {
-		const Uint8 *keys = SDL_GetKeyboardState(NULL);
 		cameraSpeedHorziontal /= 2.0f;
 		cameraSpeedVertical /= 2.0f;
 		cameraSpeedRotational /= 2.0f;
-		
-		/*
-		// Up
-        if (keys[SDL_SCANCODE_SPACE]) {
-			cameraHeight += 1.0f;
-		}
-		
-		// Down
-        if (keys[SDL_SCANCODE_LSHIFT]) {
-			cameraHeight -= 1.0f;
-		}
-		*/
-		
-		// Forward
-        if (keys[SDL_SCANCODE_W]) {
-			cameraSpeedHorziontal += 1.0f*sin(degreeToRadian(cameraRotation));
-			cameraSpeedVertical += 1.0f*cos(degreeToRadian(cameraRotation));
-		}
-		
-		// Backward
-        if (keys[SDL_SCANCODE_S]) {
-			cameraSpeedHorziontal -= 1.0f*sin(degreeToRadian(cameraRotation));
-			cameraSpeedVertical -= 1.0f*cos(degreeToRadian(cameraRotation));
-		}
-		
-		// Left
-        if (keys[SDL_SCANCODE_A]) {
-			cameraSpeedHorziontal += 1.0f*sin(degreeToRadian(cameraRotation+90));
-			cameraSpeedVertical += 1.0f*cos(degreeToRadian(cameraRotation+90));
-		}
-		
-		// Right
-        if (keys[SDL_SCANCODE_D]) {
-			cameraSpeedHorziontal += 1.0f*sin(degreeToRadian(cameraRotation-90));
-			cameraSpeedVertical += 1.0f*cos(degreeToRadian(cameraRotation-90));
-		}
-		
-		// Look-Left
-        if (keys[SDL_SCANCODE_Q]) {
-			cameraSpeedRotational += 1.0f;
-		}
-		
-		// Look-Right
-        if (keys[SDL_SCANCODE_E]) {
-			cameraSpeedRotational -= 1.0f;
-		}
-		
-		// Quit
-        if (keys[SDL_SCANCODE_ESCAPE]) {
-			running = false;
-		}
 		return 0;
 }
 
@@ -763,7 +697,7 @@ void updateInputs() {
 		if (cameraSpeedRotational >= maxSpeed) {
 			cameraSpeedRotational = maxSpeed;
 		}
-		SDL_Delay(16);
+		//SDL_Delay(16);
 		
 		// Object movement
 		
@@ -925,12 +859,16 @@ class Ray {
 		
 		// Used to step through the Ray until a wall is hit
 		int step() {
+			//printf("%f\n",RayStepSize);
+			//RayStepSize = pow((float)stepCount/(float)(WINDOW_HEIGHT_HALF),3)*3;
+			RayStepSize = StepSizeDistanceArray[stepCount + WINDOW_HEIGHT_HALF*currentColumn];//pow((float)stepCount/(float)(WINDOW_HEIGHT_HALF),2) * horizonDistance;
+			//printf("%f\n",RayStepSize);
 			Point previousPosition = position;
-			
-			RayStepSize = StepSizeDistanceArray[stepCount];
 			float rad = degreeToRadian(direction);
 			position.x += (RayStepSize*sin(rad));
 			position.y += (RayStepSize*cos(rad));
+			//(getDistance(position,cameraPosition)/horizonDistance) * WINDOW_HEIGHT/6;
+			//printf("%f\n",RayStepSize);
 			
 			// Draws those cool light columns
 			// Iterate through all the lights in the scene
@@ -1032,7 +970,6 @@ class Ray {
 void traceColumn(Ray& currentRay) {
 	// Send ray out from viewport
 	// TODO: Really hacky, could probably get a rework, but eh, whatever
-	/*
 	float nearClipPlaneDistance = 0.0f;
 	float nearClipPlaneWidth = fieldOfView/2.0f;
 	float centeredRay = (((float)currentRay.currentColumn/(float)WINDOW_WIDTH)-0.5f) * nearClipPlaneWidth;
@@ -1045,10 +982,9 @@ void traceColumn(Ray& currentRay) {
 	// This *kinda* works??
 	nearClipPlanePosition.x += nearClipPlaneHypotenuse*cos(degreeToRadian(cameraRotation));
 	nearClipPlanePosition.y += nearClipPlaneHypotenuse*sin(degreeToRadian(cameraRotation))*-1;
-	*/
 	
 	// Send out a Ray from the camera
-	currentRay.position = cameraPosition;
+	currentRay.position = nearClipPlanePosition;
 	// This is where the FoV magically appears!
     // TODO: Get this from the precalculated ray step positions
 	currentRay.direction = cameraRotation+(((((float)currentRay.currentColumn)/((float)WINDOW_WIDTH))-0.5f)*fieldOfView); // (cameraRotation + ((fieldOfView/2)*-1)) + (fieldOfView/WINDOW_WIDTH*currentRay.currentColumn);
@@ -1090,26 +1026,16 @@ int traceRenderSector(Ray& currentRay) {
 }
 
 /* ---- DISPLAYING ---- */
-// Load Color as SDL Render Color
-int loadColor(const Color& color) {
-	SDL_SetRenderDrawColor(
-		renderer,
-		(int)(clamp(color.r,0.0f,1.0f)*255),
-		(int)(clamp(color.g,0.0f,1.0f)*255),
-		(int)(clamp(color.b,0.0f,1.0f)*255),
-		255
-	);	
-	return 0;
-}
-
 void renderPixel(uint8_t *pixel, int x, int y, Color &color) {
 	x = x % WINDOW_WIDTH;
 	y = y % WINDOW_HEIGHT;
+	/*
 	pixel = (uint8_t *)texture_pixels + y * texture_pitch + x * 4;
 	pixel[0] = (uint8_t)(color.r*255);
 	pixel[1] = (uint8_t)(color.g*255);
 	pixel[2] = (uint8_t)(color.b*255);
 	pixel[3] = 0xFF;
+	*/
 }
 
 // Render Character to Screen Position
@@ -1150,9 +1076,9 @@ void updateScreen() {
 		// Start new frame
 		//SDL_SetRenderDrawColor(renderer, 255, 0, 255, 0);
 		//SDL_RenderClear(renderer);
-		newFrameTime = SDL_GetTicks();
+		newFrameTime = newFrameTime+1; //SDL_GetTicks();
 		if (frameDone && (lastFrameTime+TICKS_FOR_NEXT_FRAME <= newFrameTime)) {
-			SDL_LockTexture(texture, NULL, &texture_pixels, &texture_pitch);
+			//SDL_LockTexture(texture, NULL, &texture_pixels, &texture_pitch);
 			// Render current Column
 			// TODO: For some reason there's this stray pixel on the side?? Pls fix!
 			for (int currentColumn = 1; currentColumn < WINDOW_WIDTH; currentColumn++) {
@@ -1217,15 +1143,17 @@ void updateScreen() {
 			}
 			
 			// Finish frame
+			/*
 			SDL_UnlockTexture(texture);
 			SDL_RenderCopy(renderer, texture, NULL, NULL);
 			SDL_RenderPresent(renderer);
+			*/
 			
 			// Prep next frame
-			lastFrameTime = SDL_GetTicks();
+			lastFrameTime +=1; //SDL_GetTicks();
 			frameDone = false;
 		} else {
-			SDL_Delay(1);
+			//SDL_Delay(1);
 		}
 	}
 }
@@ -1416,6 +1344,7 @@ int WinMain(int argc, char **argv) {
 	printf("Hello, World!\n");
 	//srand(time(NULL)); 
 	
+	/*
     //SDL_Init(SDL_INIT_VIDEO);
 	printf("Init Window...\n");
 	SDL_Window *window = SDL_CreateWindow(
@@ -1449,6 +1378,7 @@ int WinMain(int argc, char **argv) {
 		WINDOW_WIDTH,
 		WINDOW_HEIGHT
 	);
+	*/
 	
 	printf("Init Default Vars...\n");
 	// Color Setting
@@ -1499,7 +1429,7 @@ int WinMain(int argc, char **argv) {
 	LightArray = (struct PointLight *)calloc(numberOfLights+1, sizeof(struct PointLight));
 	FloorLightArray = (struct Color *)calloc(WINDOW_WIDTH*(WINDOW_HEIGHT_HALF)+1, sizeof(struct Color));
 	CeilingLightArray = (struct Color *)calloc(WINDOW_WIDTH*(WINDOW_HEIGHT_HALF)+1, sizeof(struct Color));
-	StepSizeDistanceArray = (float *)calloc(WINDOW_HEIGHT_HALF, sizeof(float));
+	StepSizeDistanceArray = (float *)calloc(WINDOW_HEIGHT_HALF*WINDOW_WIDTH, sizeof(float));
 	TextureArray = (struct Texture *)calloc(numberOfTextures, sizeof(struct Texture));
 	
 	// Precalc of Steps
@@ -1614,9 +1544,9 @@ int WinMain(int argc, char **argv) {
 	
         /*! updates the array of keystates */
 		//running = false;
+		/*
 		while ((SDL_PollEvent(&event)) != 0)
 		{
-			/*! request quit */
 			if (event.type == SDL_QUIT) 
 			{ 
 				running = false;
@@ -1630,7 +1560,7 @@ int WinMain(int argc, char **argv) {
 						break;
 				}
 			}
-		}
+		}*/
 		
 		// Keystrokes are processed in keystroke thread
 		//processControls();
@@ -1643,9 +1573,11 @@ int WinMain(int argc, char **argv) {
 	free(CeilingLightArray);
 	free(StepSizeDistanceArray);
 	
+	/*
 	SDL_DestroyTexture(texture);
     SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);
     SDL_Quit();
+	*/
 	return 0;
 }
