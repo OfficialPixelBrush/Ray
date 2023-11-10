@@ -287,6 +287,15 @@ unsigned char renderFontArray[256*256] = {
 	0xAA,0x00,0xAA,0x00,0xAA,0x00,0xAA,0x00
 };
 
+
+/* ---- FORWARD DECLARE CLASSES ---- */
+class Line;
+class PointLight;
+class Texture;
+class Ray;
+
+
+/* ---- STRUCTS ---- */
 // 2D Position
 struct Point {
 	float x;
@@ -314,12 +323,12 @@ struct ScreenColumn {
 	Color color;
 	int amountOfRaySteps;
 	float lineCoordinate;
-	struct Texture *hitTexture;
-	struct Line *hitLine;
+	Texture *hitTexture;
+	Line *hitLine;
 };
 typedef struct ScreenColumn ScreenColumn;
 
-/* ---- Debug Variables */
+/* ---- Debug Variables ---- */
 bool renderMode = false;
 Color skyLight;
 Color floorColor;
@@ -337,6 +346,24 @@ Color blue;
 Color yellow;
 Color magenta;
 Color cyan;
+
+/* ---- Pointers ---- */
+// Contains the calculated Distances and Colors of the Floorlight
+Color *FloorLightArray;
+// Contains the calculated Distances and Colors of the Ceilinglight
+Color *CeilingLightArray;
+// Contains the pre-calculated Distances of each Step
+float *StepSizeDistanceArray;
+// Contains the pre-calculated Lighting of the floor and ceiling
+Color *PreCalculatedLighting;
+// Contains the Array Objects used for calculating the screen
+Ray *RayArray;
+// Contains the Lines making up the level
+Line *LineArray;
+// Contains the Point Lights of the Level
+PointLight *LightArray;
+// Contains the pre-calculated Lighting of the floor and ceiling
+Texture *TextureArray;
 
 /* ---- CLASSES ---- */
 // A primitive PointLight
@@ -366,6 +393,53 @@ class PointLight {
 	}
 };
 
+// A 2D Image to be projected onto a line, floor or ceiling
+class Texture {
+	public:
+		int width, height;
+		Color *TextureData;
+		Texture() {
+			width = 2;
+			height = 2;
+			TextureData = (struct Color *)calloc(width*height, sizeof(struct Color));
+		}
+			
+		Texture(int _width, int _height) {
+			width = _width;
+			height = _height;
+			TextureData = (struct Color *)calloc(width*height, sizeof(struct Color));
+			printf("Texture of Size %d:%d was created!\n", width, height);
+		}
+		
+		void setTexturePixel(int xPixel, int yPixel, float r, float g, float b) {
+			Color color;
+			color.r = r;
+			color.g = g;
+			color.b = b;
+			TextureData[xPixel + yPixel*width] = color;
+		}
+		
+		void setTexturePixel(int xPixel, int yPixel, Color _color) {
+			TextureData[xPixel + yPixel*width] = _color;
+		}
+		
+		Color getRangedTexturePixel(float xRange, float yRange, Line* line) {
+			//int xModifiedPos = width;
+			//printf("%f,%f\n", (float)width, (float)height);
+			
+			/*
+			// xRange and yRange come in from 0.0f to 1.0f
+			float xModifiedPos = f_Width  * (xRange * line->textureScale);
+			float yModifiedPos = f_Height * (yRange * line->textureScale);
+			
+			int xPixel = abs(((int)(xModifiedPos + line->textureOffsetHorizontal)))%width;
+			int yPixel = abs(((int)(yModifiedPos + line->textureOffsetVertical  )))%height;
+			return TextureData[xPixel + yPixel*width];
+			*/
+			return magenta;
+		}
+};
+
 // A simple line or wall
 class Line {
 	public:
@@ -373,7 +447,7 @@ class Line {
 		Point p2;
 		Color color;
 		bool emissive = false;
-		Texture* texturePointer;
+		Texture* texturePointer = &TextureArray[0];
 		float textureScale = 1.0f;
 		float textureOffsetHorizontal = 0.0f;
 		float textureOffsetVertical = 0.0f;
@@ -413,73 +487,9 @@ class Line {
 		}
 };
 
-// A 2D Image to be projected onto a line, floor or ceiling
-class Texture {
-	public:
-		int width, height;
-		Color *TextureData;
-		Texture() {
-			width = 2;
-			height = 2;
-			TextureData = (struct Color *)calloc(width*height, sizeof(struct Color));
-		}
-			
-		Texture(int _width, int _height) {
-			width = _width;
-			height = _height;
-			TextureData = (struct Color *)calloc(width*height, sizeof(struct Color));
-		}
-		
-		void setTexturePixel(int xPixel, int yPixel, float r, float g, float b) {
-			Color color;
-			color.r = r;
-			color.g = g;
-			color.b = b;
-			TextureData[xPixel + yPixel*width] = color;
-		}
-		
-		void setTexturePixel(int xPixel, int yPixel, Color _color) {
-			TextureData[xPixel + yPixel*width] = _color;
-		}
-		
-		Color getRangedTexturePixel(float xRange, float yRange, Line* line) {
-			int xModifiedPos = width;
-			//printf("%f,%f\n", (float)width, (float)height);
-			
-			/*
-			// xRange and yRange come in from 0.0f to 1.0f
-			float xModifiedPos = f_Width  * (xRange * line->textureScale);
-			float yModifiedPos = f_Height * (yRange * line->textureScale);
-			
-			int xPixel = abs(((int)(xModifiedPos + line->textureOffsetHorizontal)))%width;
-			int yPixel = abs(((int)(yModifiedPos + line->textureOffsetVertical  )))%height;
-			return TextureData[xPixel + yPixel*width];
-			*/
-			return magenta;
-		}
-};
-
 class Segment {
 	
 };
-
-/* ---- Pointers ---- */
-// Contains the Array Objects used for calculating the screen
-struct Ray *RayArray;
-// Contains the Lines making up the level
-struct Line *LineArray;
-// Contains the Point Lights of the Level
-struct PointLight *LightArray;
-// Contains the calculated Distances and Colors of the Floorlight
-struct Color *FloorLightArray;
-// Contains the calculated Distances and Colors of the Ceilinglight
-struct Color *CeilingLightArray;
-// Contains the pre-calculated Distances of each Step
-float *StepSizeDistanceArray;
-// Contains the pre-calculated Lighting of the floor and ceiling
-struct Color *PreCalculatedLighting;
-// Contains the pre-calculated Lighting of the floor and ceiling
-struct Texture *TextureArray;
 
 /* -- SDL Pointers --*/
 SDL_Event event;
@@ -523,9 +533,6 @@ float cameraHeight = 0.0f;
 float cameraSpeedHorziontal = 0.0f;
 float cameraSpeedVertical = 0.0f;
 float cameraSpeedRotational = 0.0f;
-
-// We need missing texture here :v
-Texture* missingTexture = nullptr;
 
 /* ---- HELPER FUNCTIONS ---- */
 // If returns 0, no intersection has been found
@@ -950,7 +957,7 @@ class Ray {
 					ScreenColumnArray[currentColumn].amountOfRaySteps = stepCount;        
 				    // idk why this crashes it :p
 					// probably because it's missing a line to map the texture to!
-					//ScreenColumnArray[currentColumn].hitTexture = &missingTexture;
+					//ScreenColumnArray[currentColumn].hitTexture = TextureArray[0];
 					return 1;
 				}
 			}
@@ -993,7 +1000,7 @@ class Ray {
 				    ScreenColumnArray[currentColumn].hitTexture = intersectedLineObject->texturePointer;
                 } else {
                     // If you don't, that sucks!                    
-				    ScreenColumnArray[currentColumn].hitTexture = missingTexture;
+				    ScreenColumnArray[currentColumn].hitTexture = &TextureArray[0];
 				    intersectedLineObject->emissive = true;
 				    intersectedLineObject->color = white;
                 }
@@ -1146,6 +1153,7 @@ void updateScreen() {
 	uint8_t *pixel;
 	int newFrameTime;
 	Color pixelColor;
+	
 	// Could probably also be given to multiple threads
 	while(running) {
 		// Start new frame
@@ -1326,7 +1334,7 @@ Texture importNetpbm(string path) {
 	filePointer = fopen(path.c_str(),"rb");
 	if (filePointer == NULL) {
 		printf("Missing Texture! No file at %s\n", path.c_str());
-		return *missingTexture;
+		return TextureArray[0];
 	} else {
 		// Read in image info
 		Texture *newTexture;
@@ -1419,6 +1427,7 @@ int WinMain(int argc, char **argv) {
 	//srand(time(NULL)); 
 	
     //SDL_Init(SDL_INIT_VIDEO);
+	printf("Init Window...\n");
 	SDL_Window *window = SDL_CreateWindow(
 		"Ray",
 		SDL_WINDOWPOS_UNDEFINED,
@@ -1450,7 +1459,8 @@ int WinMain(int argc, char **argv) {
 		WINDOW_WIDTH,
 		WINDOW_HEIGHT
 	);
-			
+	
+	printf("Init Default Vars...\n");
 	// Color Setting
 	skyLight.r = 0.1f;
 	skyLight.g = 0.3f;
@@ -1491,19 +1501,7 @@ int WinMain(int argc, char **argv) {
 	defaultPosition.x = 0.0f;
 	defaultPosition.y = 0.0f;
 	
-	/*	Textures */
-	// Create Missing Texture
-	missingTexture = new Texture(2,2);
-	missingTexture->setTexturePixel(0,0,black);
-	missingTexture->setTexturePixel(0,1,magenta);
-	missingTexture->setTexturePixel(1,0,magenta);
-	missingTexture->setTexturePixel(1,1,black);
-	TextureArray[0] = *missingTexture;
-	TextureArray[1] = importNetpbm("./textures/brick.ppm");
-	TextureArray[2] = importNetpbm("./textures/mossy_brick.ppm");
-	TextureArray[3] = importNetpbm("./textures/water.ppm");
-	printf("Missing Texture Created!\n");
-	
+	/*	Textures */	
 	// Array Init
 	ScreenColumnArray = (struct ScreenColumn *)calloc(WINDOW_WIDTH, sizeof(struct ScreenColumn));
 	RayArray = (struct Ray *)calloc(numberOfRays+1, sizeof(struct Ray));
@@ -1527,9 +1525,22 @@ int WinMain(int argc, char **argv) {
 	}
 	
 	// Scene is loaded here
+	printf("Init Textures...\n");
+	// Create Missing Texture
+	Texture missingTexture(2,2);
+	missingTexture.setTexturePixel(0,0,black);
+	missingTexture.setTexturePixel(0,1,magenta);
+	missingTexture.setTexturePixel(1,0,magenta);
+	missingTexture.setTexturePixel(1,1,black);
+	TextureArray[0] = missingTexture;
+	printf("Missing Texture Created!\n");
+	TextureArray[1] = importNetpbm("./textures/brick.ppm");
+	TextureArray[2] = importNetpbm("./textures/mossy_brick.ppm");
+	TextureArray[3] = importNetpbm("./textures/water.ppm");
 	
 	/* Geometry */
 	// Surrounding Walls
+	printf("Init Level...\n");
 	LineArray[1] = *new Line(0	,0	,640*2,0	,1.0, 0.0, 0.0);
 	LineArray[2] = *new Line(640*2,480,640*2,0	,1.0, 1.0, 1.0);
 	LineArray[2].emissive = true;
