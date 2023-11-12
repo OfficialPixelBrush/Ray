@@ -348,20 +348,24 @@ Color magenta;
 Color cyan;
 
 /* ---- Pointers ---- */
+// Contains the Array Objects used for calculating the screen
+Ray *RayArray;
+// Contains the pre-calculated Distances of each Step
+float *StepSizeDistanceArray;
+
+// Contains the pre-calculated Lighting of the floor and ceiling
+Color *PreCalculatedLighting;
 // Contains the calculated Distances and Colors of the Floorlight
 Color *FloorLightArray;
 // Contains the calculated Distances and Colors of the Ceilinglight
 Color *CeilingLightArray;
-// Contains the pre-calculated Distances of each Step
-float *StepSizeDistanceArray;
-// Contains the pre-calculated Lighting of the floor and ceiling
-Color *PreCalculatedLighting;
-// Contains the Array Objects used for calculating the screen
-Ray *RayArray;
-// Contains the Lines making up the level
-Line *LineArray;
+
 // Contains the Point Lights of the Level
 PointLight *LightArray;
+// Contains the Lines making up the level
+Line *LineArray;
+// Contains the Lines making up the level
+Line *RoomArray;
 // Contains the pre-calculated Lighting of the floor and ceiling
 Texture *TextureArray;
 
@@ -481,9 +485,20 @@ class Texture {
 		}
 };
 
-class Segment {
-	
+class Room {
+	int numberOfSegments;
+	Line *LineSegments;
 };
+
+class Sprite {
+	// Might be useful to have non-repeating offsets,
+	// scaling and snapping to positions (i.e. floor or ceiling)
+	Point position;
+	bool emissive = false;
+	Texture* texturePointer = nullptr;
+	Color transparencyColor = black;
+	
+}
 
 /* -- SDL Pointers --*/
 SDL_Event event;
