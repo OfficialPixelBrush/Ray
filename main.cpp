@@ -364,10 +364,12 @@ Color *CeilingLightArray;
 PointLight *LightArray;
 // Contains the Lines making up the level
 Line *LineArray;
-// Contains the Lines making up the level
-Line *RoomArray;
-// Contains the pre-calculated Lighting of the floor and ceiling
+// Contains the Segments making up the level
+Line *SegmentArray;
+// Contains the textures
 Texture *TextureArray;
+// Contains the Levels Sprites
+Texture *SpriteArray;
 
 /* ---- CLASSES ---- */
 // A primitive PointLight
