@@ -16,8 +16,8 @@ using std::to_string;
         } \
     } while(0)
 
-int WINDOW_WIDTH 		= 640;
-int WINDOW_HEIGHT 		= 480;
+int WINDOW_WIDTH 		= 1280;
+int WINDOW_HEIGHT 		= 720;
 int WINDOW_WIDTH_HALF 	= WINDOW_WIDTH/2;
 int WINDOW_HEIGHT_HALF 	= WINDOW_HEIGHT/2;
 #define PI 3.1415926535897932384626433832795028841971693993751058209749445923078164062
@@ -293,6 +293,8 @@ class Line;
 class PointLight;
 class Texture;
 class Ray;
+class Sprite;
+class Segment;
 
 
 /* ---- STRUCTS ---- */
@@ -369,7 +371,7 @@ Line *SegmentArray;
 // Contains the textures
 Texture *TextureArray;
 // Contains the Levels Sprites
-Texture *SpriteArray;
+Sprite *SpriteArray;
 
 /* ---- CLASSES ---- */
 // A primitive PointLight
@@ -447,6 +449,7 @@ class Line {
 };
 
 // A 2D Image to be projected onto a line, floor or ceiling
+// TODO: Fix positioning to world, not per-texture!!!!
 class Texture {
 	public:
 		int width, height;
@@ -495,12 +498,12 @@ class Room {
 class Sprite {
 	// Might be useful to have non-repeating offsets,
 	// scaling and snapping to positions (i.e. floor or ceiling)
-	Point position;
-	bool emissive = false;
-	Texture* texturePointer = nullptr;
-	Color transparencyColor = black;
-	
-}
+	public:
+		Point position;
+		bool emissive = false;
+		Texture* texturePointer = nullptr;
+		Color transparencyColor = black;
+};
 
 /* -- SDL Pointers --*/
 SDL_Event event;
@@ -524,6 +527,7 @@ int numberOfLines = 20;
 int numberOfLights = 10;
 int numberOfBounces = 0;
 int numberOfTextures = 10;
+int numberOfSprites = 20;
 int numberOfRenderSectors = 1;
 int numberOfRays = numberOfRenderSectors;
 // Max Room size;
@@ -1049,7 +1053,7 @@ class Ray {
 void traceColumn(Ray& currentRay) {
 	// Send ray out from viewport
 	// TODO: Really hacky, could probably get a rework, but eh, whatever
-	/*
+	
 	float nearClipPlaneDistance = 0.0f;
 	float nearClipPlaneWidth = fieldOfView/2.0f;
 	float centeredRay = (((float)currentRay.currentColumn/(float)WINDOW_WIDTH)-0.5f) * nearClipPlaneWidth;
@@ -1062,10 +1066,10 @@ void traceColumn(Ray& currentRay) {
 	// This *kinda* works??
 	nearClipPlanePosition.x += nearClipPlaneHypotenuse*cos(degreeToRadian(cameraRotation));
 	nearClipPlanePosition.y += nearClipPlaneHypotenuse*sin(degreeToRadian(cameraRotation))*-1;
-	*/
+	
 	
 	// Send out a Ray from the camera
-	currentRay.position = cameraPosition;
+	currentRay.position = nearClipPlanePosition;
 	// This is where the FoV magically appears!
     // TODO: Get this from the precalculated ray step positions
 	currentRay.direction = cameraRotation+(((((float)currentRay.currentColumn)/((float)WINDOW_WIDTH))-0.5f)*fieldOfView); // (cameraRotation + ((fieldOfView/2)*-1)) + (fieldOfView/WINDOW_WIDTH*currentRay.currentColumn);
@@ -1177,6 +1181,13 @@ void updateScreen() {
 				
 				// Calculate Size of column
 				sliceSize = currentScreenColumn->amountOfRaySteps;
+				for (int spriteIndex = 1; spriteIndex <= numberOfSprites; spriteIndex++) {
+				    if (getDistance(cameraPosition,SpriteArray[spriteIndex].position) <= horizonDistance) {
+				        // Sprite added to list of to-be-drawn Sprites
+				        // Then we render sprites until we hit sprite 0 in Array
+				        // Or until the end of the Array
+				    }
+				}
 				
 				// Render Column
 				for (int currentRow = 0; currentRow <= WINDOW_HEIGHT; currentRow++) {
@@ -1518,6 +1529,7 @@ int WinMain(int argc, char **argv) {
 	CeilingLightArray = (struct Color *)calloc(WINDOW_WIDTH*(WINDOW_HEIGHT_HALF)+1, sizeof(struct Color));
 	StepSizeDistanceArray = (float *)calloc(WINDOW_HEIGHT_HALF, sizeof(float));
 	TextureArray = (struct Texture *)calloc(numberOfTextures, sizeof(struct Texture));
+	SpriteArray = (struct Sprite *)calloc(numberOfSprites, sizeof(struct Sprite));
 	
 	// Precalc of Steps
 	preCalculateStepArray();
@@ -1544,6 +1556,7 @@ int WinMain(int argc, char **argv) {
 	TextureArray[1] = importNetpbm("./textures/brick.ppm");
 	TextureArray[2] = importNetpbm("./textures/mossy_brick.ppm");
 	TextureArray[3] = importNetpbm("./textures/water.ppm");
+	TextureArray[4] = importNetpbm("./textures/cobblestone.ppm");
 	
 	/* Geometry */
 	// Surrounding Walls
@@ -1577,13 +1590,29 @@ int WinMain(int argc, char **argv) {
 	
 	// Column
 	LineArray[9] =  *new Line(660,200,680,210,1.0, 1.0, 1.0);
+	LineArray[9].texturePointer = &TextureArray[4];
+	LineArray[9].textureScale = 1.0f;
 	LineArray[10] = *new Line(680,210,690,230,1.0, 1.0, 1.0);
+	LineArray[10].texturePointer = &TextureArray[4];
+	LineArray[10].textureScale = 1.0f;
 	LineArray[11] = *new Line(690,230,680,250,1.0, 1.0, 1.0);
+	LineArray[11].texturePointer = &TextureArray[4];
+	LineArray[11].textureScale = 1.0f;
 	LineArray[12] = *new Line(680,250,660,260,1.0, 1.0, 1.0);
+	LineArray[12].texturePointer = &TextureArray[4];
+	LineArray[12].textureScale = 1.0f;
 	LineArray[13] = *new Line(660,260,640,250,1.0, 1.0, 1.0);
+	LineArray[13].texturePointer = &TextureArray[4];
+	LineArray[13].textureScale = 1.0f;
 	LineArray[14] = *new Line(640,250,630,230,1.0, 1.0, 1.0);
+	LineArray[14].texturePointer = &TextureArray[4];
+	LineArray[14].textureScale = 1.0f;
 	LineArray[15] = *new Line(630,230,640,210,1.0, 1.0, 1.0);
+	LineArray[15].texturePointer = &TextureArray[4];
+	LineArray[15].textureScale = 1.0f;
 	LineArray[16] = *new Line(640,210,660,200,1.0, 1.0, 1.0);
+	LineArray[16].texturePointer = &TextureArray[4];
+	LineArray[16].textureScale = 1.0f;
 	
 	// Lights
 	LightArray[1] = *new PointLight(640/2		, 480/2	,1.0	,1.0	,1.0	,1.0f	,512.0f	);
