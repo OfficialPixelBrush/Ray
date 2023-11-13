@@ -298,6 +298,7 @@ class Segment;
 
 
 /* ---- STRUCTS ---- */
+
 // 2D Position
 struct Point {
 	float x;
@@ -325,7 +326,6 @@ struct ScreenColumn {
 	Color color;
 	int amountOfRaySteps;
 	float lineCoordinate;
-	Texture *hitTexture;
 	Line *hitLine;
 };
 typedef struct ScreenColumn ScreenColumn;
@@ -374,6 +374,7 @@ Texture *TextureArray;
 Sprite *SpriteArray;
 
 /* ---- CLASSES ---- */
+
 // A primitive PointLight
 class PointLight {
 	public:
@@ -402,6 +403,7 @@ class PointLight {
 };
 
 // A simple line or wall
+
 class Line {
 	public:
 		Point p1;
@@ -528,7 +530,7 @@ int numberOfLights = 10;
 int numberOfBounces = 0;
 int numberOfTextures = 10;
 int numberOfSprites = 20;
-int numberOfRenderSectors = 1;
+int numberOfRenderSectors = 4;
 int numberOfRays = numberOfRenderSectors;
 // Max Room size;
 int maximumWidth;
@@ -1004,16 +1006,6 @@ class Ray {
 				ScreenColumnArray[currentColumn].hitLine = intersectedLineObject;				
 				// Get distance to camera
 				ScreenColumnArray[currentColumn].amountOfRaySteps = stepCount;
-				// Get texture of hit line
-                // Check if a texture is present
-                if (intersectedLineObject->texturePointer) {
-                    // If you find one, good on you
-				    ScreenColumnArray[currentColumn].hitTexture = intersectedLineObject->texturePointer;
-                } else {
-                    // If you don't, that sucks!                    
-				    ScreenColumnArray[currentColumn].hitTexture = &TextureArray[0];
-				    intersectedLineObject->emissive = true;
-                }
 				
 				// Light Distance Shading
 				if (intersectedLineObject->emissive) {
@@ -1199,14 +1191,14 @@ void updateScreen() {
 						// Render Wall
 						if (currentRow <= WINDOW_HEIGHT-sliceSize) {
 							// If there is a texture, draw it
-							if (currentScreenColumn->hitTexture) {
+							if (currentScreenColumn->hitLine->texturePointer) {
 								int wallBeginning = sliceSize;
 								int wallEnd = WINDOW_HEIGHT-sliceSize;
 								int wallTotal = wallEnd - wallBeginning;
 								int adjustedCurrentRow = currentRow - wallBeginning;
 								
 								float rowCoorinate = ((float)adjustedCurrentRow/(float)wallTotal);
-								Color textureColor = currentScreenColumn->hitTexture->getRangedTexturePixel(
+								Color textureColor = currentScreenColumn->hitLine->texturePointer->getRangedTexturePixel(
 									currentScreenColumn->lineCoordinate,
 									rowCoorinate,
 									currentScreenColumn->hitLine
