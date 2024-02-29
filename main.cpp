@@ -1385,6 +1385,7 @@ Texture importNetpbm(string path) {
 					} else {
 						fscanf(filePointer, "%d", &height);
 						currentByte = fgetc(filePointer);
+						stateCounter++;
 					}
 					break;
 				case 3: // 0: Reading Bitdepth
@@ -1395,6 +1396,7 @@ Texture importNetpbm(string path) {
 						fseek(filePointer, -1, SEEK_CUR);
 						fscanf(filePointer, "%d", &bitdepth);
 						currentByte = fgetc(filePointer);
+						stateCounter++;
 					}
 					break;
 				case 4:
