@@ -1425,6 +1425,64 @@ Texture importNetpbm(string path) {
 	}
 }
 
+int initArrays() {
+	printf("Init Arrays...\n");
+	ScreenColumnArray = (struct ScreenColumn *)calloc(WINDOW_WIDTH, sizeof(struct ScreenColumn));
+	RayArray = (struct Ray *)calloc(numberOfRays+1, sizeof(struct Ray));
+	LineArray = (struct Line *)calloc(numberOfLines+1, sizeof(struct Line));
+	LightArray = (struct PointLight *)calloc(numberOfLights+1, sizeof(struct PointLight));
+	FloorLightArray = (struct Color *)calloc(WINDOW_WIDTH*(WINDOW_HEIGHT_HALF)+1, sizeof(struct Color));
+	CeilingLightArray = (struct Color *)calloc(WINDOW_WIDTH*(WINDOW_HEIGHT_HALF)+1, sizeof(struct Color));
+	StepSizeDistanceArray = (float *)calloc(WINDOW_HEIGHT_HALF, sizeof(float));
+	TextureArray = (struct Texture *)calloc(numberOfTextures, sizeof(struct Texture));
+	SpriteArray = (struct Sprite *)calloc(numberOfSprites, sizeof(struct Sprite));
+	return 0;
+}
+
+int initVariables() {
+	printf("Init Default Vars...\n");
+	// Color Setting
+	skyLight.r = 0.1f;
+	skyLight.g = 0.3f;
+	skyLight.b = 0.5f;
+	
+	floorColor.r = 0.5f;
+	floorColor.g = 0.5f;
+	floorColor.b = 0.5f;
+	
+	white.r = 1.0f;
+	white.g = 1.0f;
+	white.b = 1.0f;
+	black.r = 0.0f;
+	black.g = 0.0f;
+	black.b = 0.0f;
+	
+	red.r = 1.0f;
+	red.g = 0.0f;
+	red.b = 0.0f;
+	green.r = 0.0f;
+	green.g = 1.0f;
+	green.b = 0.0f;
+	blue.r = 0.0f;
+	blue.g = 0.0f;
+	blue.b = 1.0f;
+	
+	yellow.r = 1.0f;
+	yellow.g = 1.0f;
+	yellow.b = 0.0f;
+	magenta.r = 1.0f;
+	magenta.g = 0.0f;
+	magenta.b = 1.0f;
+	cyan.r = 0.0f;
+	cyan.g = 1.0f;
+	cyan.b = 1.0f;
+	
+	// Default Position
+	defaultPosition.x = 0.0f;
+	defaultPosition.y = 0.0f;
+	return 0;
+}
+
 /* --- MAIN ---- */
 // Ye olden Main function
 #ifdef __linux__ // Check for Linux
@@ -1472,58 +1530,12 @@ int WinMain(int argc, char **argv) {
 		WINDOW_HEIGHT
 	);
 	
-	printf("Init Default Vars...\n");
-	// Color Setting
-	skyLight.r = 0.1f;
-	skyLight.g = 0.3f;
-	skyLight.b = 0.5f;
-	
-	floorColor.r = 0.5f;
-	floorColor.g = 0.5f;
-	floorColor.b = 0.5f;
-	
-	white.r = 1.0f;
-	white.g = 1.0f;
-	white.b = 1.0f;
-	black.r = 0.0f;
-	black.g = 0.0f;
-	black.b = 0.0f;
-	
-	red.r = 1.0f;
-	red.g = 0.0f;
-	red.b = 0.0f;
-	green.r = 0.0f;
-	green.g = 1.0f;
-	green.b = 0.0f;
-	blue.r = 0.0f;
-	blue.g = 0.0f;
-	blue.b = 1.0f;
-	
-	yellow.r = 1.0f;
-	yellow.g = 1.0f;
-	yellow.b = 0.0f;
-	magenta.r = 1.0f;
-	magenta.g = 0.0f;
-	magenta.b = 1.0f;
-	cyan.r = 0.0f;
-	cyan.g = 1.0f;
-	cyan.b = 1.0f;
-	
-	// Default Position
-	defaultPosition.x = 0.0f;
-	defaultPosition.y = 0.0f;
-	
+	// InitVars
+	initVariables()
+
 	/*	Textures */	
 	// Array Init
-	ScreenColumnArray = (struct ScreenColumn *)calloc(WINDOW_WIDTH, sizeof(struct ScreenColumn));
-	RayArray = (struct Ray *)calloc(numberOfRays+1, sizeof(struct Ray));
-	LineArray = (struct Line *)calloc(numberOfLines+1, sizeof(struct Line));
-	LightArray = (struct PointLight *)calloc(numberOfLights+1, sizeof(struct PointLight));
-	FloorLightArray = (struct Color *)calloc(WINDOW_WIDTH*(WINDOW_HEIGHT_HALF)+1, sizeof(struct Color));
-	CeilingLightArray = (struct Color *)calloc(WINDOW_WIDTH*(WINDOW_HEIGHT_HALF)+1, sizeof(struct Color));
-	StepSizeDistanceArray = (float *)calloc(WINDOW_HEIGHT_HALF, sizeof(float));
-	TextureArray = (struct Texture *)calloc(numberOfTextures, sizeof(struct Texture));
-	SpriteArray = (struct Sprite *)calloc(numberOfSprites, sizeof(struct Sprite));
+	initArrays();
 	
 	// Precalc of Steps
 	preCalculateStepArray();
