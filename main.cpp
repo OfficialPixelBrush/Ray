@@ -1531,7 +1531,7 @@ int WinMain(int argc, char **argv) {
 	);
 	
 	// InitVars
-	initVariables()
+	initVariables();
 
 	/*	Textures */	
 	// Array Init
