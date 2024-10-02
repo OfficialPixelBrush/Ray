@@ -539,8 +539,8 @@ int maximumHeight;
 /* ---- Camera Variables ---- */
 Point cameraPosition;
 float cameraRotation = 0.0f;
-float fieldOfView = 180.0f;
-float horizonDistance = 16.0f;
+float fieldOfView = 1000.0f;
+float horizonDistance = 32.0f;
 float initialRayStepSize = 0.1f;
 
 
@@ -982,6 +982,7 @@ class Ray {
 			// If a Line has been hit, draw it
 			
 			if (intersectedLineIndex) {
+				//printf("%f\n",direction);
 				// Get Intersection Point of Ray and Line
 				Line RayLine(cameraPosition,position);
 				Point intersectionPoint = getIntersectionPoint(RayLine,*intersectedLineObject);
@@ -1064,7 +1065,7 @@ void traceColumn(Ray& currentRay) {
 	currentRay.position = nearClipPlanePosition;
 	// This is where the FoV magically appears!
     // TODO: Get this from the precalculated ray step positions
-	currentRay.direction = cameraRotation+(((((float)currentRay.currentColumn)/((float)WINDOW_WIDTH))-0.5f)*fieldOfView); // (cameraRotation + ((fieldOfView/2)*-1)) + (fieldOfView/WINDOW_WIDTH*currentRay.currentColumn);
+	currentRay.direction = cameraRotation; //+(((((float)currentRay.currentColumn)/((float)WINDOW_WIDTH))-0.5f)*fieldOfView); // (cameraRotation + ((fieldOfView/2)*-1)) + (fieldOfView/WINDOW_WIDTH*currentRay.currentColumn);
 
 	currentRay.setInitialRayStepSize(initialRayStepSize);
 	
@@ -1159,7 +1160,8 @@ void updateScreen() {
 	Color pixelColor;
 	
 	// Could probably also be given to multiple threads
-	while(running) {
+	// TODO: Turn into "while" when multi-threaded
+	if(running) {
 		// Start new frame
 		//SDL_SetRenderDrawColor(renderer, 255, 0, 255, 0);
 		//SDL_RenderClear(renderer);
@@ -1635,12 +1637,12 @@ int WinMain(int argc, char **argv) {
 	
 	// Threadpools
 	std::vector<std::thread> raytraceThreadPool;
-	std::vector<std::thread> renderThreadPool;
+	//std::vector<std::thread> renderThreadPool;
 	std::thread gameplayThread(updateInputs);
 	
-	renderThreadPool.emplace_back(updateScreen);
+	//renderThreadPool.emplace_back(updateScreen);
 	
-    while (running) {		
+    while (running) {	
 		// Raytrace
 		// Only trace new frames if last frame is done drawing
 		if (!frameDone) {
@@ -1658,17 +1660,15 @@ int WinMain(int argc, char **argv) {
 					t.join();
 				}
 			}
+			raytraceThreadPool.clear();
 			frameDone = true;
 		}
-		
-		// Update Screen handled by Render Thread
-		//updateScreen();
+
+		updateScreen();
 	
-        /*! updates the array of keystates */
-		//running = false;
-		while ((SDL_PollEvent(&event)) != 0)
+		while (SDL_PollEvent(&event))
 		{
-			/*! request quit */
+			// request quit
 			if (event.type == SDL_QUIT) 
 			{ 
 				running = false;
