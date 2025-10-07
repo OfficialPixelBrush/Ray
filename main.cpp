@@ -1341,7 +1341,6 @@ void precalculateLighting() {
 // Load a ppm image in as a Texture File
 Texture importNetpbm(string path) {
 	FILE *filePointer;
-	int width, heigth;
 	Color color;
 	filePointer = fopen(path.c_str(),"rb");
 	if (filePointer == NULL) {
@@ -1349,76 +1348,42 @@ Texture importNetpbm(string path) {
 		return TextureArray[0];
 	} else {
 		// Read in image info
-		Texture *newTexture;
 		unsigned char currentByte;
 		short int stateCounter = 0;
 		int width, height, bitdepth;
 		printf("Loading Texture from File: %s\n", path.c_str());
 		/*
 			0: Reading Filetype
-			1: Reading Width
-			2: Reading Height
-			3: Reading Bit-depth
-			4: Create Texture
-			5: Read Data
-			6: Finished
+			1: Reading Width + Height
+			2: Reading Bit-depth
+			3: Create Texture
+			4: Read Data
+			5: Finished
 		*/
-		while (stateCounter < 6) {
-			//printf("%d: %c\n", stateCounter, currentByte);
-			switch(stateCounter) {
-				case 0: // 0: Reading Filetype
-					currentByte = fgetc(filePointer);
-					if (currentByte==0x0A) {
-						stateCounter++;
-					}
-					break;
-				case 1: // 1: Reading Width
-					if (currentByte==0x20) {
-						stateCounter++;
-					} else {
-						fscanf(filePointer, "%d", &width);
-						currentByte = fgetc(filePointer);
-					}
-					break;
-				case 2: // 1: Reading Height
-					if (currentByte==0x0A) {
-						stateCounter++;
-						currentByte = fgetc(filePointer);
-					} else {
-						fscanf(filePointer, "%d", &height);
-						currentByte = fgetc(filePointer);
-						stateCounter++;
-					}
-					break;
-				case 3: // 0: Reading Bitdepth
-					if (currentByte==0x0A) {
-						stateCounter++;
-					} else {
-						// A bit of a hack to avoid losing the first character
-						fseek(filePointer, -1, SEEK_CUR);
-						fscanf(filePointer, "%d", &bitdepth);
-						currentByte = fgetc(filePointer);
-						stateCounter++;
-					}
-					break;
-				case 4:
-					newTexture = new Texture(width,height);
-					stateCounter++;
-					break;
-				case 5:
-					for (int y = 0; y < height; y++) {
-						for (int x = 0; x < width; x++) {
-							currentByte = fgetc(filePointer);
-							color.r = ((float)currentByte/(float)bitdepth);
-							currentByte = fgetc(filePointer);
-							color.g = ((float)currentByte/(float)bitdepth);
-							currentByte = fgetc(filePointer);
-							color.b = ((float)currentByte/(float)bitdepth);
-							newTexture->setTexturePixel(x, y, color);
-						}
-					}
-					stateCounter++;
-					break;
+		// Skip reading header, always P6
+		while (fgetc(filePointer) != '\n');
+		fscanf(filePointer, "%d", &width);
+		printf("%d\n", width);
+		fscanf(filePointer, "%d", &height);
+		printf("%d\n", height);
+		while (fgetc(filePointer) != '\n');
+
+		// Create Texture with defined size
+		Texture *newTexture = new Texture(width,height);
+
+		fscanf(filePointer, "%d", &bitdepth);
+		printf("%d\n", bitdepth);
+		while (fgetc(filePointer) != '\n');
+		for (int y = 0; y < height; y++) {
+			for (int x = 0; x < width; x++) {
+				currentByte = fgetc(filePointer);
+				color.r = ((float)currentByte/(float)bitdepth);
+				currentByte = fgetc(filePointer);
+				color.g = ((float)currentByte/(float)bitdepth);
+				currentByte = fgetc(filePointer);
+				color.b = ((float)currentByte/(float)bitdepth);
+				newTexture->setTexturePixel(x, y, color);
+				printf("%f %f %f\n", color.r,color.g,color.b);
 			}
 		}
 		printf("New Texture: %d:%d@%d\n", width, height, bitdepth);
